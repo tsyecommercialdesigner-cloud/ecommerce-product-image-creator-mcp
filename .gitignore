@@ -1,0 +1,103 @@
+# Secrets and machine-local configuration; commit only empty secret examples.
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.toml
+*.local.yaml
+*.local.yml
+/.git-credentials
+/secrets/
+/credentials/
+.claude/settings.local.json
+.claude/projects/
+.codex/auth.json
+.codex/sessions/
+.codex/log/
+.agents/.local/
+
+# Python environments, compiled files, package metadata and tool caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.uv-cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.pyre/
+.dmypy.json
+.hypothesis/
+.tox/
+.nox/
+
+# Node.js dependencies and caches; retain lockfiles and shared configuration.
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+.eslintcache
+.parcel-cache/
+.turbo/
+.vite/
+.vitest/
+*.tsbuildinfo
+
+# Rebuildable output at the project root; outputs/ is intentionally not ignored.
+/dist/
+/build/
+/output/
+
+# Generated test/coverage reports, including nested Python/Node subprojects.
+# Reserve these paths for runner output; use a reviewed, narrow exception for
+# a deliberately versioned fixture whose name matches a generated-file rule.
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+coverage.xml
+lcov.info
+.nyc_output/
+junit.xml
+junit-*.xml
+pytest.xml
+test-results/
+test-reports/
+playwright-report/
+blob-report/
+allure-results/
+allure-report/
+benchmark-results/
+.benchmarks/
+.mutmut-cache
+/mutants/
+
+# Local runtime state, logs and temporary files.
+.cache/
+/.runtime/
+/runtime-data/
+/logs/
+/tmp/
+/temp/
+*.log
+*.tmp
+*.temp
+*.pid
+*.pid.lock
+
+# OS/editor-local state; keep shared editor and Agent configuration.
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/shelf/
