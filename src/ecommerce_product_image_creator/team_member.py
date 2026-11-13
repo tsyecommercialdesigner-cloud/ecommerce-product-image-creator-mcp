@@ -11,7 +11,12 @@ from .artifact_reader import read_artifact
 from .config import team_mode_enabled
 from .domain import Reference, ReferenceCategory
 from .input_revision import record_input_revision
-from .preparation import _input_context, _observations, _preserved_inputs
+from .preparation import (
+    _input_context,
+    _observations,
+    _preserved_inputs,
+    _review_is_trusted,
+)
 from .review import FormReview, get_review, save_review
 from .storage import ResourceBudget, Store, read_reference
 
@@ -91,8 +96,13 @@ def confirm_mock_inputs(
         review.task_id != task_id
         or review.artifact_id != artifact_id
         or review.decision != "accept"
-        or review.source != "team-responsible-user"
-        or review.evidence_reference != _REVIEW_EVIDENCE
+        or not _review_is_trusted(
+            review.source,
+            task_id,
+            review_id,
+            review.artifact_digest,
+            review.evidence_reference,
+        )
         or review.invalidated
         or (review.expires_at is not None and review.expires_at <= time.time())
     ):

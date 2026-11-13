@@ -15,7 +15,11 @@ from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from PIL import Image
 
-from ecommerce_product_image_creator.review import FormReview, save_review
+from ecommerce_product_image_creator.review import (
+    FormReview,
+    invalidate_review,
+    save_review,
+)
 from ecommerce_product_image_creator.storage import Store
 
 from .test_pinned_https import tls_server  # noqa: F401
@@ -35,6 +39,7 @@ from .test_pinned_https import tls_server  # noqa: F401
         "mock",
         "team-native",
         "team-native-mock",
+        "team-native-legacy-mock",
         "team-native-mismatch",
         "team-native-top-mismatch",
         "team-native-host",
@@ -45,6 +50,9 @@ from .test_pinned_https import tls_server  # noqa: F401
     ],
 )
 def test_team_mcp_query_and_delivery(tmp_path: Path, tls_server, scenario):  # noqa: F811
+    legacy_review = scenario == "team-native-legacy-mock"
+    if legacy_review:
+        scenario = "team-native-mock"
     cert, port, tls = tls_server
     root, state = tmp_path / "input", tmp_path / "state"
     root.mkdir()
@@ -343,21 +351,82 @@ main()
                             },
                         )
                         assert invalid_review.is_error
-                        member_review = await session.call_tool(
-                            "review_form",
-                            {
-                                "task_id": args["task_id"],
-                                "revision": args["revision"],
-                                "attempt_id": submit.structured_content["attempt_id"],
-                                "artifact_id": artifact,
-                                "decision": "accept",
-                            },
-                        )
-                        assert (
-                            not member_review.is_error
-                            and member_review.structured_content
-                        )
-                        review_id = member_review.structured_content["review_id"]
+                        if legacy_review:
+                            review_store = Store(state / "tasks.sqlite")
+                            for case in (
+                                "rejected",
+                                "untrusted",
+                                "expired",
+                                "invalidated",
+                            ):
+                                bad_id = "legacy-" + case
+                                now = time.time()
+                                save_review(
+                                    review_store,
+                                    FormReview(
+                                        bad_id,
+                                        args["task_id"],
+                                        args["revision"],
+                                        artifact,
+                                        digest,
+                                        "reject" if case == "rejected" else "accept",
+                                        "fixture"
+                                        if case == "untrusted"
+                                        else "team-responsible-user",
+                                        now - 2,
+                                        "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper",
+                                        expires_at=now - 1
+                                        if case == "expired"
+                                        else None,
+                                    ),
+                                )
+                                if case == "invalidated":
+                                    invalidate_review(review_store, bad_id, "fixture")
+                                denied = await session.call_tool(
+                                    "confirm_mock_inputs",
+                                    {
+                                        "task_id": args["task_id"],
+                                        "artifact_id": artifact,
+                                        "review_id": bad_id,
+                                        "references": [refs[1]],
+                                    },
+                                )
+                                assert denied.is_error
+                                if case != "invalidated":
+                                    invalidate_review(review_store, bad_id, "fixture")
+                            review_id = "legacy-team-review"
+                            save_review(
+                                Store(state / "tasks.sqlite"),
+                                FormReview(
+                                    review_id,
+                                    args["task_id"],
+                                    args["revision"],
+                                    artifact,
+                                    digest,
+                                    "accept",
+                                    "team-responsible-user",
+                                    time.time(),
+                                    "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper",
+                                ),
+                            )
+                        else:
+                            member_review = await session.call_tool(
+                                "review_form",
+                                {
+                                    "task_id": args["task_id"],
+                                    "revision": args["revision"],
+                                    "attempt_id": submit.structured_content[
+                                        "attempt_id"
+                                    ],
+                                    "artifact_id": artifact,
+                                    "decision": "accept",
+                                },
+                            )
+                            assert (
+                                not member_review.is_error
+                                and member_review.structured_content
+                            )
+                            review_id = member_review.structured_content["review_id"]
                         changed = root / "new-artwork.png"
                         Image.new("RGB", (4, 4), "green").save(changed)
                         mock_refs = [{**refs[1], "path": str(changed)}]
@@ -483,7 +552,11 @@ main()
                     if scenario == "team-native-mock":
                         assert review["usage_scope"] == "concept_prototype"
                         assert review["mock_permitted"] is True
-                        assert review["unverified_structure"] == "not_specified"
+                        assert review["unverified_structure"] == (
+                            ["back", "sides", "zipper"]
+                            if legacy_review
+                            else "not_specified"
+                        )
                         assert review["trust_state"] == "unverified"
                     mock = await session.call_tool(
                         "prepare_product_image",
