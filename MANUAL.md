@@ -1,6 +1,6 @@
-# 成员安装与使用手册（待发布版本）
+# 成员安装与使用手册
 
-本手册针对当前待审查工作区；当前尚无包含 Team Mode 和四项真实测试功能、并通过 CI 的发布提交。下面的安装步骤要等负责人批准提交、经过 CI 并公布完整 SHA 后使用。不要以旧基线 SHA 冒充该版本。
+本手册对应 [v0.1.0](https://github.com/tsyecommercialdesigner-cloud/ecommerce-product-image-creator-mcp/releases/tag/v0.1.0)，完整提交为 `994a45f5a8ff5d8cc421315492e42e4a55379750`。该版本支持 Team Mode；实际验证范围与限制见第 5 节。
 
 ## 1. 安装
 
@@ -10,15 +10,13 @@
 $ErrorActionPreference = 'Stop'
 $ProjectDir = 'D:\MCP\ecommerce-product-image-creator-mcp'
 if (Test-Path -LiteralPath $ProjectDir) { throw '目标目录已存在，请勿覆盖。' }
+$ReleaseTag = 'v0.1.0'
+$ReleaseCommit = '994a45f5a8ff5d8cc421315492e42e4a55379750'
 New-Item -ItemType Directory -Force -Path 'D:\MCP' | Out-Null
-git clone https://github.com/tsyecommercialdesigner-cloud/ecommerce-product-image-creator-mcp.git $ProjectDir
+git clone --branch $ReleaseTag --single-branch https://github.com/tsyecommercialdesigner-cloud/ecommerce-product-image-creator-mcp.git $ProjectDir
 if ($LASTEXITCODE -ne 0) { throw 'clone 失败' }
-# 发布后，将下面的占位符替换为发布记录中经过 CI 的完整提交 SHA。
-$ReleaseCommit = '<已发布并通过 CI 的完整 SHA>'
-if ($ReleaseCommit -notmatch '^[0-9a-f]{40}$') { throw '尚未填写已验证的完整 SHA' }
-git -C $ProjectDir checkout --detach $ReleaseCommit
-if ($LASTEXITCODE -ne 0) { throw '检出失败' }
-git -C $ProjectDir rev-parse HEAD
+$ActualCommit = git -C $ProjectDir rev-parse HEAD
+if ($LASTEXITCODE -ne 0 -or $ActualCommit -ne $ReleaseCommit) { throw '检出提交与发布记录不一致' }
 Set-Location -LiteralPath $ProjectDir
 uv python install
 if ($LASTEXITCODE -ne 0) { throw 'Python 安装失败' }
@@ -156,4 +154,4 @@ D:/MCP/ecommerce-product-image-creator-mcp/runtime-data/inputs/design.png 作为
 
 ## 5. 验证及限制
 
-历史 Windows GitHub Actions 在旧提交 `77b34257f6b7d93ee97ab40dbd31a925a878b9e9` 上通过 1060 项免费测试；它不是当前未提交代码的 CI 结果。新提交必须重新完成干净检出、锁定安装、Windows CI、成员安装和 Host 冒烟检查。Host 模型交互本身也可能收费，与图片网关费用分开。
+v0.1.0 的 [Windows CI](https://github.com/tsyecommercialdesigner-cloud/ecommerce-product-image-creator-mcp/actions/runs/43372471051) 在发布提交上完成 1095 项免费测试；[发布 CD](https://github.com/tsyecommercialdesigner-cloud/ecommerce-product-image-creator-mcp/actions/runs/43373460155) 从标签验证了锁定运行依赖安装与 MCP 工具发现。此前真实双模型 Form／Mock 验收及 Host 测试的范围以对应记录为准；发布过程没有重新执行真实供应商或 Host 验收。Host 模型交互本身也可能收费，与图片网关费用分开。
