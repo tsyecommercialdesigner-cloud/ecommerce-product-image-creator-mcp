@@ -844,10 +844,18 @@ class LocalEligibilityResult:
 class LocalEligibility:
     """Checks local consistency and consumption; does not call a Host or provider."""
 
-    def __init__(self, store: Store, input_root: Path, budget: ResourceBudget) -> None:
+    def __init__(
+        self,
+        store: Store,
+        input_root: Path,
+        budget: ResourceBudget,
+        *,
+        team_live: bool = False,
+    ) -> None:
         self.store = store
         self.input_root = input_root
         self.budget = budget
+        self.team_live = team_live
         with closing(self.store._connect()) as db, db:
             db.execute("""CREATE TABLE IF NOT EXISTS local_eligibility (
                 operation_id TEXT PRIMARY KEY, confirmation_id TEXT NOT NULL UNIQUE, task_id TEXT NOT NULL,
@@ -932,8 +940,7 @@ class LocalEligibility:
         except (ValueError, OSError, MemoryError):
             raise EligibilityError("Execution context is invalid or changed") from None
 
-    @staticmethod
-    def _current(db: sqlite3.Connection, task: Task, revision: Revision) -> None:
+    def _current(self, db: sqlite3.Connection, task: Task, revision: Revision) -> None:
         row = db.execute(
             "SELECT input_digest,instructions,status FROM task WHERE task_id=?",
             (task.task_id,),
@@ -946,7 +953,16 @@ class LocalEligibility:
             (task.task_id, revision.revision),
         ).fetchone()
         if (
-            row != (task.input_digest, task.instructions, "ready")
+            (
+                not row
+                or row[:2] != (task.input_digest, task.instructions)
+                or row[2]
+                not in (
+                    {"ready", "draft", "awaiting_confirmation"}
+                    if self.team_live
+                    else {"ready"}
+                )
+            )
             or not latest
             or latest[0] != revision.revision
             or stored != (revision.input_digest,)

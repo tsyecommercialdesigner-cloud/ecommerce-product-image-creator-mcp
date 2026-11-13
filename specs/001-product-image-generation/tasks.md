@@ -94,8 +94,8 @@
 - [x] T049 在 `src/ecommerce_product_image_creator/provider.py` 及 `tests/integration/test_download_safety.py` 依据 T009 实现并离线验证受控 URL/协议/DNS/跳转、下载资源与超时保护、内容格式校验、保存失败及磁盘/内存不足的安全报告，保留上游成功与本地交付失败；不依赖真实供应商测试或擅设固定业务阈值。
 - [x] T050 在 `tests/contract/test_mcp_protocol.py` 使用实际锁定 SDK 验证三个工具输入输出 schema、协议/工具错误、结构化结果、stdio stdout 与 stderr，并保存独立协议证据。
 - [ ] T051 [P] 在 `specs/001-product-image-generation/contracts/host-codex-integration.md` 用独立 Server 和无收费替身逐项验证 Codex 的实际 MCP 工具调用、真人允许/拒绝、自动放行、任务/提示词/参考图/费用及尝试范围展示、内容变化失效、Server 可见证据、Agent 绕过/重放；记录版本、受控前提和未覆盖。
-- [ ] T052 [P] 在 `specs/001-product-image-generation/contracts/host-claude-integration.md` 用独立 Server 和无收费替身逐项验证 Claude Code 的实际 MCP 工具调用、真人允许/拒绝、自动放行、任务/提示词/参考图/费用及尝试范围展示、内容变化失效、Server 可见证据、Agent 绕过/重放；记录版本、受控前提和未覆盖。
-- [ ] T053 [P] 在 `specs/001-product-image-generation/contracts/host-dsh-integration.md` 用独立 Server 和无收费替身逐项验证 DeepSeek Harness 的实际 MCP 工具调用、真人允许/拒绝、自动放行、任务/提示词/参考图/费用及尝试范围展示、内容变化失效、Server 可见证据、Agent 绕过/重放；记录版本、受控前提和未覆盖，不把测试 guard 当人工确认。
+- [ ] T052 [P] 在 `specs/001-product-image-generation/contracts/host-claude-integration.md` 用独立 Server 和无收费替身逐项验证 Claude Desktop 的实际 MCP 工具调用、真人允许/拒绝、自动放行、任务/提示词/参考图/费用及尝试范围展示、内容变化失效、Server 可见证据、Agent 绕过/重放；记录版本、受控前提和未覆盖。
+- [ ] T053 [P] 在 `specs/001-product-image-generation/contracts/host-dsh-integration.md` 用独立 Server 和无收费替身逐项验证 DeepSeek Harness Desktop（desktop Profile）的实际 MCP 工具调用、真人允许/拒绝、自动放行、任务/提示词/参考图/费用及尝试范围展示、内容变化失效、Server 可见证据、Agent 绕过/重放；记录版本、受控前提和未覆盖，不把测试 guard 当人工确认。
 - [ ] T054 在 `specs/001-product-image-generation/contracts/architecture-review.md` 汇总 T051–T053 的实际可验证保证、运行前提、可见证据及自然人确认/防伪剩余风险；若不满足宪法授权核对则阻断对应 Host 的真实收费提交并报告治理决策需求。
 - [ ] T055 在 `specs/001-product-image-generation/contracts/provider-adapters.md` 建立逐模型/端点/分组/阶段矩阵，分列供应商声明、历史样例、T045 替身、本项目真实服务证据；形态 1–6 张与 mock 2–3 张未实测前为未验证。
 - [ ] T056 在 `specs/001-product-image-generation/contracts/provider-validation-plan.md` 编制真实绘图测试计划：素材、隐私、分组、模型、端点、张数、费用、等待和 unknown 不重提；列明逐次授权、成功/失败/未验证证据，不包含独立 LLM 测试。
@@ -103,8 +103,8 @@
 - [ ] T058 在 `specs/001-product-image-generation/evidence/provider-project/` 经 T057 对具体测试授权后，使用已通过 T015/T049 离线保护的独立 Server 实测绘图端到端和该次输入约束，记录模型、端点、可见分组、输入及提示词摘要、ID、状态、产物、cost/耗时和未核账单；unknown 不重提。
 - [ ] T059 在 `specs/001-product-image-generation/evidence/provider-project/` 经每次请求另行授权，验证形态 1/6 输入和 Mock 2/3 输入及各阶段单张六视图组合输出、供应商限制与端到端行为；未知限制及未执行边界保留 unknown，不以历史样例外推。
 - [ ] T060 在 `specs/001-product-image-generation/quickstart.md` 安排运营人员分别审核真实形态六视图组合图及单张六视图包装 Mock 组合图，判断形态仅用原参考与文字是否足以修订；记录任务、版本、授权及反馈，不以模型自评代替人工裁决。
-- [ ] T061 [P] 在 `.github/workflows/ci.yml` 配置锁定安装、格式、静态、类型及免费测试；使用假凭据和替身，验证 CI 不调用真实供应商。
-- [ ] T062 在 `README.md` 和 `MANUAL.md` 按交付指南记录已验证的独立 Server 本地 stdio、安装、根 `.env` 优先级、Host 交互、已知限制和 unknown 恢复；不声称未验证 Host 或供应商兼容。
+- [x] T061 [P] 在 `.github/workflows/ci.yml` 配置锁定安装、格式、静态、类型及免费测试；使用假凭据和替身，验证 CI 不调用真实供应商。
+- [ ] T062 在 `README.md` 和 `MANUAL.md` 按交付指南记录已验证的独立 Server 本地 stdio、安装、根 `.env` 优先级、Host 交互、已知限制和 unknown 恢复；不声称未验证 Host 或供应商兼容。 具体要求与验收依据见 [成员手册契约](contracts/manual-writing.md) 和 [撰写指南](manual-writing-guide.md)。
 - [ ] T063 在 `specs/001-product-image-generation/quickstart.md` 汇总 SDK 协议、离线测试、独立 Server/三个 Host、崩溃恢复、真实供应商和外部人工验收的分层证据及未完成项，脱敏并只清理本次临时资源。
 
 ## 依赖、并行及人工停止

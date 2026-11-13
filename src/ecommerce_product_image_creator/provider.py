@@ -634,6 +634,8 @@ def parse_query(http_status: int, payload: Any, task_id: str) -> ProviderResult:
         return transport_unknown()
     if "code" in payload and payload["code"] != "success":
         return transport_unknown()
+    if "task_id" in payload and _id(payload["task_id"]) != task_id:
+        return transport_unknown()
     data = payload.get("data")
     if not isinstance(data, dict) or _id(data.get("task_id")) != task_id:
         return transport_unknown()

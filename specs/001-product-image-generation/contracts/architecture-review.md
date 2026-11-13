@@ -4,16 +4,34 @@
 
 本项目构建独立 MCP Server，由自身适配层直接访问供应商 HTTP；不要求安装、配置或运行其他现有 MCP Server。历史外部 MCP 测试仅用于参考，不构成本项目服务的验收证据。
 
+## 2026-11-12 Team Mode 新决定
+
+负责人已批准受控内部 Team Mode 与宪法 VI 修订，宪法版本更新为 3.0.0：明确启用环境的调用方单次生成工具调用按团队政策视为一次授权；不证明真人逐次确认。下文关于严格独立授权和 Host 防伪的论述作为 Strict Authorization Mode 的历史及后续范围，不再是 Team Mode 的产品要求。一次操作仍不能隐式扩大为多次 POST，unknown 不盲目重试。Team Form 现已接入现有提交事务和单次传输，两个开关默认关闭；仅经离线替身验证，协议、查询、下载和交付仍待实际验证。
+
 ## 本机 Host 授权信任边界（FR-012，待验证）
 
 - **可信主体与范围**：运营人员控制的 Windows 本机、单用户会话、受控 Host 和同机 stdio Server；不适用于多人共享账号、恶意同账号进程或不受控远程客户端。Host Agent 构造提示词；Server 不调用独立 LLM。
 - **Host 职责**：通过实际可用的权限机制展示并核对任务、参考资料、提示词摘要、绘图模型、接口、组别、费用/次数与恢复范围，承载运营人员允许、拒绝和形态组合/包装 Mock 组合审核。当前三种 Host 是否能提供这些能力尚待逐版本联调；普通工具可调用性不证明已核对。
 - **Server 职责**：核验任务 revision、输入快照、提示词版本/摘要、阶段、范围与可见确认来源；版本变化使适用确认失效；SQLite 限制本地并发、重放和重复提交，记录可见证据及 `unverified`，不伪造身份凭证，不声称远端恰好一次。`approved=true`、模型自述、API Key 和普通工具调用标识均非业务授权证据。
 - **确认频率**：每次可能收费的真实外部请求都须独立明确授权，包括适用的安全重试、模型切换、查询和下载；收费属性不明不得推定免费。范围授权只定义整体任务、模型/接口、费用及尝试上限，不代替逐次请求许可。unknown 不可查询后重新提交仍须新的明确风险授权及适用请求许可，不能绕过安全规则。形态组合图和包装 Mock 组合图的人工审核单独进行，审核本身不自动授权收费。当前真实 Host 和逐次授权交接未验证，生产默认拒绝；已批准的隔离 Scope 证据不构成真实收费验证。
-- **剩余风险**：Host 自动批准、预授权或同账号进程绕过交互可能允许未经自然人逐次确认的调用；Server 通常无法独立证明自然人、签发者、范围或防伪。不得把 Host 放行或 `unverified` 直接当成业务授权成立。实际的任务范围核对、拒绝、失效和抗重放须分别对 Codex、Claude Code、DeepSeek Harness 测试；无法落实业务授权核对时停止相应收费提交并报告。
-- **现有证据**：[Host 许可测试记录](host-permission-probe-2026-11-02.md) 仅显示 Codex/Claude 预授权与无交互拒绝、DSH 默认直接调用及测试 guard；未证明人工交互或 Server 独立验证。不存在已完成的本项目 Server 联调。
+- **剩余风险**：Host 自动批准、预授权或同账号进程绕过交互可能允许未经自然人逐次确认的调用；Server 通常无法独立证明自然人、签发者、范围或防伪。不得把 Host 放行或 `unverified` 直接当成业务授权成立。实际的任务范围核对、拒绝、失效和抗重放须分别对 Codex CLI、Claude Desktop、DeepSeek Harness Desktop 测试；无法落实业务授权核对时停止相应收费提交并报告。
+- **既有探测证据**：[Host 许可测试记录](host-permission-probe-2026-11-02.md) 记录早期探测；本项目独立 Server 的后续真实 Host 观察见下表，不能把早期探测等同于业务授权。
 
-**三 Host 验证矩阵**：Codex、Claude Code、DeepSeek Harness 均须分别以本项目独立 Server 和无收费替身验证真人允许、真人拒绝、自动放行配置、任务/提示词/参考图/费用及重试范围的展示、输入变化后的确认失效、Server 实际可见证据，以及 Agent 能否绕过或重放确认。记录版本、配置和无法测试项。可验证的是实际运行下展示与阻止行为、Server 可见数据和本地绑定/去重；单用户受控机器、Host 配置可信、同账号不存在恶意进程则是运行前提，不是单靠替身能够证明的安全保证。Server 无法独立证明自然人确认的情况须作为剩余风险披露，不能伪装已验证。若实测无法满足宪法授权核对要求，停止该 Host 的相关真实收费提交，报告须人工决定的治理处理，不擅自豁免。
+**三 Host 验证矩阵**：Codex CLI、Claude Desktop、DeepSeek Harness Desktop（desktop Profile）均须分别以本项目独立 Server 和无收费替身验证真人允许、真人拒绝、自动放行配置、任务/提示词/参考图/费用及重试范围的展示、输入变化后的确认失效、Server 实际可见证据，以及 Agent 能否绕过或重放确认。记录版本、配置和无法测试项。可验证的是实际运行下展示与阻止行为、Server 可见数据和本地绑定/去重；单用户受控机器、Host 配置可信、同账号不存在恶意进程则是运行前提，不是单靠替身能够证明的安全保证。Server 无法独立证明自然人确认的情况须作为剩余风险披露，不能伪装已验证。若实测无法满足宪法授权核对要求，停止该 Host 的相关真实收费提交，报告须人工决定的治理处理，不擅自豁免。
+
+### T054 实际 Host 汇总（2026-11-12）
+
+| Host | 实际接入 | 工具调用 | 真人交互 | 自动放行 | Server 可信授权 | 生产收费许可 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Codex CLI 0.163.0 | 独立 stdio Server 已验证 | Prepare、Query 成功；无授权 Submit 拒绝 | Allow、Cancel 已观察；Cancel 有 Server 观察器及 Allow 正对照 | 查询和无授权提交的 session Allow 已观察；提交仍被 Server 拒绝 | 未验证可独立核验的人类授权交接 | 阻断 |
+| Claude Desktop 4.23118.1.0 | 独立 stdio Server 已验证 | Prepare、Query 成功；无授权 Submit 拒绝 | probe Allow once 与 Query Deny 已观察；观察器未见 Deny 的工具请求 | 会话级选项及行为未观察到，不能断言不支持 | 未验证可独立核验的人类授权交接 | 阻断 |
+| DeepSeek Harness Desktop 0.2.1-rc.5，desktop Profile | 独立 stdio Server 已验证 | Prepare、Query 成功；无授权 Submit 拒绝 | 真人 Allow／Deny 未观察到 | 完全权限下业务调用直接执行；工作区内修改模式一次只读 Query 也未提示，不外推其他操作 | 未验证可独立核验的人类授权交接 | 阻断 |
+
+各 Host 使用隔离 SQLite、测试输入、stdio 观察器和默认拒绝的生产发送器；Desktop 测试使用的 Host 模型可能收费，实际费用未知，不是绘图供应商费用证据。观察器记录工具方法、名称和请求 ID，并不证明自然人身份或全部业务范围。Codex 的提示框依调用显示部分参数，未证明完整费用及尝试范围；Claude 和 DSH 的完整范围展示尚未验证。每项 Host 观察及未覆盖内容分别见 [Codex](host-codex-integration.md)、[Claude Desktop](host-claude-integration.md)、[DSH Desktop](host-dsh-integration.md)。
+
+独立服务端离线证据与 Host 观察分层：`tests/contract/test_execution_snapshot.py`、`test_prompt_context.py` 及 `tests/integration/test_form_revision.py` 覆盖快照、提示词和冻结参考图变化；`tests/contract/test_execution_candidate_contract.py` 验证旧确认不适用于替代 Candidate；`tests/contract/test_submit_authorization.py` 和 `test_mcp_protocol.py` 覆盖普通声明／无授权拒绝；`tests/integration/test_offline_submission.py` 覆盖 unknown 不自动重放。它们使用隔离来源或替身，不证明真实 Host 已批准内容变化后授权失效，也不证明真实收费逐次许可已完成。
+
+Host Tool Approval 仅是 Host 对工具调用的界面决定，不等于 Server Authorization。当前尚无 Server 可独立验证且绑定具体请求的真人收费授权来源，已恢复的离线基线亦未完成每次可能收费请求的强制独立许可消费；需在真实收费之前完成并验证该交接和逐次执行边界。未知费用、unknown 状态和已有风险预留继续保守处理。真实模型协议、生产网络、下载许可及人工图像验收仍有各自独立门禁，不因本汇总获准。T051–T053 仍有正式逐项证据缺口，保持未完成；T054 已完成现有保证与风险汇总，建议按离线汇总范围人工审核，不豁免宪法 VI。
 
 Phase 2A 只验证本地 SQLite 并发资格及合成标识的一次性占用；该机制没有签发、验证或消费真实 Host 授权凭证的能力，不证明操作者身份或费用范围。T016 的授权核对、三 Host 人机交接及收费门禁均未实现或验证。
 
@@ -77,7 +95,7 @@ SQLite 是本地任务、操作和关联的权威记录；上游有证据时决�
 | 形态确认、多视图交付、外部审核及任务关联 | FR-010、011、018、020–022 |
 | 费用授权、失败、未知与重新尝试 | FR-012、013、019 |
 
-上述 Host 替身探测已经执行，其证据不等同于本项目独立 Server 联调。未来仍需无权限替身单元/供应商契约、锁定 SDK 的独立协议测试、Codex、Claude Code 和 DeepSeek Harness 各自的人机许可及项目 Host 联调、另行授权的真实供应商测试、外部人工业务验收。除所引用的替身探测外，这些项目验收尚未执行。供应商验证矩阵见 [provider-adapters.md](provider-adapters.md)。
+上述早期 Host 探测与后续独立 Server 联调的证据等级不同。三个实际 Host 已完成基础工具调用，详见下表；人机许可范围、可信授权交接与变更失效仍未完整验证。真实供应商测试和外部人工业务验收仍需另行完成。供应商验证矩阵见 [provider-adapters.md](provider-adapters.md)。
 
 ## 原任务查询费用边界
 

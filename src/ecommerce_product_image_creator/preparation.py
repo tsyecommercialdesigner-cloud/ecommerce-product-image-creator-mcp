@@ -9,6 +9,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from ecommerce_product_image_creator.config import team_mode_enabled
 from ecommerce_product_image_creator.domain import (
     ExecutionSnapshot,
     InputValidationError,
@@ -806,8 +807,14 @@ def _review_is_trusted(
     artifact_sha256: str,
     evidence_reference: str | None,
 ) -> bool:
-    """No Host review evidence verifier has been implemented or validated yet."""
-    return False
+    """Accept explicit local Team operator declarations; Strict stays closed."""
+    return (
+        team_mode_enabled()
+        and source == "team-responsible-user"
+        and bool(task_id and review_id and artifact_sha256)
+        and evidence_reference
+        == "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper"
+    )
 
 
 def _reject_review_conflict(

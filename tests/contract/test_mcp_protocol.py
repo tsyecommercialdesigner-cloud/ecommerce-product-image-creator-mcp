@@ -17,7 +17,10 @@ def test_stdio_sdk_initialization_discovery_and_errors(tmp_path: Path) -> None:
     async def run() -> None:
         params = StdioServerParameters(
             command=sys.executable,
-            args=["-m", "ecommerce_product_image_creator.server"],
+            args=[
+                "-c",
+                "from ecommerce_product_image_creator.server import server\ndef probe(fail: bool=False) -> str:\n if fail: raise ValueError('Probe failed')\n return 'phase2a-ok'\nserver.add_tool(probe,name='phase2a_probe')\nserver.run(transport='stdio')",
+            ],
             env={"ZHENZHEN_GPTIMAGEGEN_API_KEY": "real-secret-test"},
         )
         error_path = tmp_path / "stderr.log"
@@ -33,6 +36,7 @@ def test_stdio_sdk_initialization_discovery_and_errors(tmp_path: Path) -> None:
                     "phase2a_probe",
                     "prepare_product_image",
                     "get_product_image_task",
+                    "get_product_image_file",
                     "submit_product_image",
                 }
                 good = await session.call_tool("phase2a_probe", {"fail": False})
@@ -104,10 +108,10 @@ def test_stdio_business_schemas_calls_and_read_only_boundaries(tmp_path: Path) -
                 listing = await client.list_tools()
                 tools = {item.name: item for item in listing.tools}
                 assert set(tools) == {
-                    "phase2a_probe",
                     "prepare_product_image",
                     "submit_product_image",
                     "get_product_image_task",
+                    "get_product_image_file",
                 }
                 assert all(
                     tools[name].description
@@ -176,7 +180,9 @@ def test_stdio_business_schemas_calls_and_read_only_boundaries(tmp_path: Path) -
                     "stage",
                     "revision",
                     "artifact_id",
+                    "refresh_remote",
                 }
+                assert query_schema["properties"]["refresh_remote"]["default"] is False
                 assert all(
                     schema.get("additionalProperties", True)
                     for schema in (prepare_schema, submit_schema, query_schema)
@@ -242,6 +248,15 @@ def test_stdio_business_schemas_calls_and_read_only_boundaries(tmp_path: Path) -
                 )
                 assert not read.is_error and read.structured_content is not None
                 assert read.structured_content["task_id"] == task_id
+                refresh = await client.call_tool(
+                    "get_product_image_task",
+                    {"task_id": task_id, "refresh_remote": True},
+                )
+                assert not refresh.is_error and refresh.structured_content is not None
+                assert (
+                    refresh.structured_content["team_reconciliation"]
+                    == "team_refresh_disabled"
+                )
                 with sqlite3.connect(state / "tasks.sqlite") as db:
                     before = db.execute("SELECT count(*) FROM attempt").fetchone()
                 for invalid in (
@@ -356,7 +371,6 @@ import asyncio,sys
 from pathlib import Path
 from mcp.server.mcpserver import Context
 from ecommerce_product_image_creator.server import server,main
-server.remove_tool('phase2a_probe')
 async def slow_probe(ctx: Context) -> str:
     await ctx.report_progress(1, 2)
     try:
@@ -395,7 +409,7 @@ main()
 
             await asyncio.wait_for(await_stopped(), timeout=15)
             assert stopped.read_text(encoding="utf-8") == "cancelled"
-            assert len((await client.list_tools()).tools) == 4
+            assert len((await client.list_tools()).tools) == 5
 
     asyncio.run(run())
 
@@ -405,7 +419,6 @@ def test_stdio_unexpected_process_exit_is_observable() -> None:
     child = r"""
 import os
 from ecommerce_product_image_creator.server import server,main
-server.remove_tool('phase2a_probe')
 def crash_probe() -> str:
     os._exit(17)
 server.add_tool(crash_probe, name='phase2a_probe')
@@ -483,7 +496,6 @@ def test_unexpected_tool_failure_does_not_leak_exception_details(
 ) -> None:
     child = r"""
 from ecommerce_product_image_creator.server import server,main
-server.remove_tool('phase2a_probe')
 def failing_probe() -> str:
     raise RuntimeError('isolated-exception-secret-marker')
 server.add_tool(failing_probe, name='phase2a_probe')

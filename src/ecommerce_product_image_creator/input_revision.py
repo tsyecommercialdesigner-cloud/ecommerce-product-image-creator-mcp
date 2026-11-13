@@ -7,6 +7,7 @@ import time
 from contextlib import closing
 from typing import Any
 
+from ecommerce_product_image_creator.config import team_mode_enabled
 from ecommerce_product_image_creator.preparation import PreparationError, read_prepared
 from ecommerce_product_image_creator.storage import Store
 
@@ -24,8 +25,12 @@ def _schema(db: sqlite3.Connection) -> None:
 
 
 def _source_is_trusted(record: dict[str, Any]) -> bool:
-    """A Host verification integration is not configured in production."""
-    return False
+    """Allow explicit local Team input changes; Strict mode still fails closed."""
+    return (
+        team_mode_enabled()
+        and record.get("source") == "team-local-input-change"
+        and record.get("evidence_reference") == "team-explicit-preparation"
+    )
 
 
 def _ref_values(refs: list[dict[str, Any]]) -> list[dict[str, Any]]:

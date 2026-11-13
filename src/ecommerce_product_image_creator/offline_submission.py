@@ -1,4 +1,4 @@
-"""Inert local submission orchestration; production verifiers and dispatch always deny."""
+"""Persist submission attempts; Team Form dispatch is explicitly opt-in."""
 
 import sqlite3
 import time
@@ -138,6 +138,10 @@ def _before_intent_commit() -> None:
 
 def _before_offline_dispatch() -> None:
     """Fault-injection seam after the final local checks, before transport."""
+
+
+def _after_team_response_received() -> None:
+    """Fault-injection seam before an upstream response is persisted."""
 
 
 def _pre_dispatch_validate(request: SerializedRequest) -> None:
@@ -285,10 +289,24 @@ def submit_offline(
     risk_authorization_id: str | None = None,
     require_first_authorizations: bool = False,
     require_retry_scope: bool = False,
+    team_live: bool = False,
 ) -> OfflineSubmission:
     """Reserve once atomically and dispatch only through an isolated test replacement."""
     if snapshot.digest_version != 2:
         raise SubmissionError("A complete v2 snapshot is required")
+    if team_live:
+        from .team_transport import TeamSettings
+
+        settings = TeamSettings.from_environment()
+        if (
+            not settings.enabled
+            or not settings.generation_enabled
+            or retry_of is not None
+            or risk_authorization_id is not None
+            or require_first_authorizations
+            or snapshot.stage not in {"form", "mock"}
+        ):
+            raise SubmissionError("Team submission unavailable")
     if require_retry_scope and (retry_of is None or risk_authorization_id is not None):
         raise SubmissionError("Scoped retry requires a technical retry root")
     confirmation_id = confirmation.confirmation_id
@@ -461,8 +479,9 @@ def submit_offline(
                 from .first_authorization import check
 
                 authorization_ids = check(db, operation_id, snapshot)
-            if not _verify_business_choices(snapshot) or not _verify_authorization(
-                snapshot
+            if not team_live and (
+                not _verify_business_choices(snapshot)
+                or not _verify_authorization(snapshot)
             ):
                 raise SubmissionError(
                     "Business confirmation or authorization is unverified"
@@ -932,8 +951,9 @@ def submit_offline(
                 from .first_authorization import check
 
                 check(db, operation_id, snapshot, attempt_id=attempt_id)
-            if not _verify_business_choices(snapshot) or not _verify_authorization(
-                snapshot
+            if not team_live and (
+                not _verify_business_choices(snapshot)
+                or not _verify_authorization(snapshot)
             ):
                 raise SubmissionError(
                     "Business confirmation or authorization is unverified"
@@ -1112,7 +1132,23 @@ def submit_offline(
                     )
             _before_offline_dispatch()
             dispatch_started = True
-            response = _offline_dispatch(request)
+            if team_live:
+                from .team_transport import TeamRequest, TeamSettings, send_once
+
+                response = send_once(
+                    TeamRequest(
+                        operation_id,
+                        attempt_id,
+                        snapshot.execution_digest,
+                        snapshot.model,
+                        request,
+                        db,
+                    ),
+                    TeamSettings.from_environment(),
+                )
+                _after_team_response_received()
+            else:
+                response = _offline_dispatch(request)
         if (
             not isinstance(response, ProviderResult)
             or response.state

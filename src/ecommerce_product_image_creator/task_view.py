@@ -299,6 +299,22 @@ def read_task_view(
                             )
                         }
                     )
+                    if _has(db, "team_artifact_evidence"):
+                        team_evidence = db.execute(
+                            "SELECT e.observation_id,e.local_sha256,e.supplier_sha256 "
+                            "FROM team_artifact_evidence e JOIN first_artifact_anchor a "
+                            "ON a.locator_id=e.locator_id WHERE a.artifact_id=? AND a.attempt_id=?",
+                            (artifact_id, aid),
+                        ).fetchone()
+                        if team_evidence:
+                            artifacts[-1]["integrity_provenance"] = {
+                                "source": "team_gateway_observation",
+                                "observation_id": team_evidence[0],
+                                "local_sha256": team_evidence[1],
+                                "supplier_sha256": "not_verified"
+                                if team_evidence[2] is None
+                                else "verified",
+                            }
                     if _has(db, "artifact_integrity_observation"):
                         integrity = db.execute(
                             "SELECT observation_id,state,reason,previous_status,observed_at FROM artifact_integrity_observation WHERE artifact_id=? AND attempt_id=? ORDER BY observation_id DESC LIMIT 1",

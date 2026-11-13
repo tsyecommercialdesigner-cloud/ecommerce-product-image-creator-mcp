@@ -236,8 +236,17 @@ def read_locator(store: Store, locator_id: str) -> LocatorEvidence | None:
 def _verify_locator_source(
     identity: original_query.OriginalIdentity, evidence: LocatorEvidence
 ) -> bool:
-    """Production has no verified locator or account-scope source."""
-    return False
+    """Verify Team provenance in its explicit refresh, keeping Strict closed."""
+    from .team_artifact_evidence import recorded, selected
+    from .team_query_policy import url_hash
+
+    if evidence.source != "team-gateway" or evidence.observation_id is None:
+        return False
+    selected_url = selected(identity, evidence.observation_id)
+    return bool(
+        (selected_url and evidence.handle == url_hash(selected_url[0]))
+        or recorded(evidence)
+    )
 
 
 def _checked(db: sqlite3.Connection, store: Store, e: LocatorEvidence) -> bool:
@@ -575,7 +584,9 @@ def verify_acquired_bytes(result: VerifiedArtifactBytes) -> bool:
 
 def _verify_fixture_access(evidence: LocatorEvidence) -> bool:
     """No real retrieval or fee authorization exists in the default configuration."""
-    return False
+    from .team_artifact_evidence import recorded
+
+    return recorded(evidence)
 
 
 def _fetch_fixture(
@@ -585,7 +596,9 @@ def _fetch_fixture(
 
 
 def _verify_fixture_content(evidence: LocatorEvidence, data: bytes) -> bool:
-    return False
+    from .team_artifact_evidence import content
+
+    return content(evidence, data)
 
 
 def acquire_original_bytes(

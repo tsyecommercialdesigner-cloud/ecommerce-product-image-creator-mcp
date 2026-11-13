@@ -120,7 +120,7 @@ def _review(
         if latest[4] is not None and latest[4] <= now
         else latest[1]
     )
-    return {
+    result = {
         "state": state,
         "decision": latest[1],
         "review_id": latest[0],
@@ -132,6 +132,24 @@ def _review(
             if r[6] is not None or r[7] is not None
         ],
     }
+    if stage == "form" and latest[2] == "team-responsible-user":
+        detail = db.execute(
+            "SELECT evidence_reference FROM form_review_detail WHERE review_id=?",
+            (latest[0],),
+        ).fetchone()
+        if (
+            detail
+            and detail[0]
+            == "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper"
+        ):
+            result["usage_scope"] = "concept_prototype"
+            from .preparation import _review_is_trusted
+
+            result["mock_permitted"] = state == "accept" and _review_is_trusted(
+                latest[2], task_id, latest[0], digest, detail[0]
+            )
+            result["unverified_structure"] = ["back", "sides", "zipper"]
+    return result
 
 
 def read_artifact(
@@ -217,6 +235,8 @@ def read_artifact(
             reference = file_state.pop("reference", None)
             if row[2] != "succeeded" or row[3] != "delivered":
                 reference = None
+            elif file_state["state"] == "verified":
+                file_state["path"] = row[0]
         return {
             "task_id": task_id,
             "stage": stage,

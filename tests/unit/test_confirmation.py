@@ -629,6 +629,58 @@ def test_plain_revision_cannot_remove_reference_without_proposal(tmp_path: Path)
     )
 
 
+def test_team_input_revision_is_bound_and_strict_denies(tmp_path: Path, monkeypatch):
+    from ecommerce_product_image_creator import input_revision
+
+    store, budget, refs, first = make_task(tmp_path)
+    target = refs[1:]
+    descriptors = read_prepared(store, first["task_id"], 1)["references"][1:]
+    input_revision.record_input_revision(
+        store,
+        "team-change",
+        first["task_id"],
+        1,
+        descriptors,
+        "team requested input change",
+        "team-local-input-change",
+        time.time() + 120,
+        "team-explicit-preparation",
+    )
+    monkeypatch.setenv("TEAM_MODE", "false")
+    with pytest.raises(ValueError):
+        prepare_form(
+            store,
+            tmp_path,
+            budget,
+            target,
+            "request",
+            "new prompt",
+            "model",
+            "endpoint",
+            "group",
+            task_id=first["task_id"],
+            _revision_decision_id="team-change",
+        )
+    monkeypatch.setenv("TEAM_MODE", "true")
+    second = prepare_form(
+        store,
+        tmp_path,
+        budget,
+        target,
+        "request",
+        "new prompt",
+        "model",
+        "endpoint",
+        "group",
+        task_id=first["task_id"],
+        _revision_decision_id="team-change",
+    )
+    record = input_revision.read_input_revision(store, "team-change")
+    assert record["target_revision"] == second["revision"]
+    assert record["target_execution_digest"] == second["execution_digest"]
+    assert second["authorization"] == "unverified"
+
+
 def test_trusted_operator_revision_is_bound_and_frozen(tmp_path: Path, monkeypatch):
     from ecommerce_product_image_creator import input_revision
 

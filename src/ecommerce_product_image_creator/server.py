@@ -1,7 +1,8 @@
-"""Non-billable stdio server with form-stage preparation."""
+"""Stdio server with offline preparation and opt-in Team Form submission."""
 
 import os
 import sqlite3
+import time
 from contextlib import closing
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,7 @@ from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from pydantic import ValidationError
 
-from ecommerce_product_image_creator import offline_submission
+from ecommerce_product_image_creator import config, offline_submission
 from ecommerce_product_image_creator.artifact_reader import (
     ArtifactReadError,
     read_artifact,
@@ -50,7 +51,42 @@ class _SanitizedMCPServer(MCPServer):
         context: Context[Any, Any] | None = None,
     ) -> types.CallToolResult | types.InputRequiredResult:
         try:
-            return await super().call_tool(name, arguments, context)
+            result = await super().call_tool(name, arguments, context)
+            if (
+                name in {"get_product_image_task", "get_product_image_file"}
+                and isinstance(result, types.CallToolResult)
+                and not result.is_error
+                and isinstance(result.structured_content, dict)
+            ):
+                from .image_preview import original_image, preview
+
+                state = Path(os.environ["PRODUCT_IMAGE_STATE_DIR"]).resolve(strict=True)
+                budget = ResourceBudget(
+                    int(os.environ["PRODUCT_IMAGE_MAX_INPUT_BYTES"]),
+                    int(os.environ["PRODUCT_IMAGE_MAX_PIXELS"]),
+                    int(os.environ["PRODUCT_IMAGE_MAX_DECODED_BYTES"]),
+                )
+                try:
+                    if name == "get_product_image_file":
+                        result.content.append(
+                            original_image(result.structured_content, state, budget)
+                        )
+                        return result
+                    content = preview(result.structured_content, state, budget)
+                except (OSError, ValueError, MemoryError):
+                    raise ToolError(
+                        "Artifact file cannot be safely previewed"
+                    ) from None
+                if content is not None:
+                    image, markdown = content
+                    result.content.append(image)
+                    result.content.append(
+                        types.TextContent(
+                            type="text",
+                            text=f"图片正文预览（如 Host 支持本地 Markdown）：{markdown}",
+                        )
+                    )
+            return result
         except ToolError as error:
             if isinstance(error, UnexpectedToolError):
                 raise UnexpectedToolError("Tool execution failed") from None
@@ -64,7 +100,7 @@ server = _SanitizedMCPServer("ecommerce-product-image-creator", version="0.1.0")
 
 @server.tool(
     name="submit_product_image",
-    description="Submit a previously prepared first operation only with independently verified authorization.",
+    description="Submit a prepared first operation; Team Live may incur generation charges.",
 )
 def submit_product_image(
     task_id: str,
@@ -80,6 +116,13 @@ def submit_product_image(
 ) -> dict[str, Any]:
     """Recover immutable execution data; public inputs never establish trust."""
     try:
+        from . import config, team_transport
+
+        team_settings = team_transport.TeamSettings.from_environment()
+        team_live = team_settings.enabled and team_settings.generation_enabled
+        if team_live:
+            # Check configuration before registering any business intent.
+            config.load_config()
         root = Path(os.environ["PRODUCT_IMAGE_INPUT_ROOT"]).resolve(strict=True)
         state = Path(os.environ["PRODUCT_IMAGE_STATE_DIR"]).resolve(strict=True)
         if (
@@ -96,6 +139,8 @@ def submit_product_image(
             int(os.environ["PRODUCT_IMAGE_MAX_DECODED_BYTES"]),
         )
         store = Store(state / "tasks.sqlite")
+        if team_live:
+            LocalEligibility(store, root, budget, team_live=True)
         saved = read_prepared(store, task_id, revision)
         if saved["digest_version"] != 2 or not saved["snapshot_payload"]:
             raise ValueError("Complete v2 snapshot required")
@@ -166,7 +211,7 @@ def submit_product_image(
         if (
             not task_row
             or not latest
-            or not eligibility
+            or (not eligibility and not team_live)
             or candidate
             or retry
             or linked
@@ -203,9 +248,21 @@ def submit_product_image(
             prompt_digest,
             prompt_revision,
             execution_digest,
-            confirmation_id=eligibility[0],
+            confirmation_id=eligibility[0] if eligibility else "team-" + operation_id,
         )
-        service = LocalEligibility(store, root, budget)
+        service = LocalEligibility(store, root, budget, team_live=team_live)
+        if team_live and not eligibility:
+            service.prepare(
+                task,
+                rev,
+                refs,
+                prompt,
+                snapshot,
+                confirmation,
+                operation_id,
+                scope,
+                expires_at=time.time() + 300,
+            )
         result = offline_submission.submit_offline(
             service,
             task,
@@ -216,7 +273,8 @@ def submit_product_image(
             confirmation,
             operation_id,
             scope,
-            require_first_authorizations=True,
+            require_first_authorizations=not team_live,
+            team_live=team_live,
         )
         with closing(store._connect()) as db:
             boundary = db.execute(
@@ -265,16 +323,9 @@ def submit_product_image(
         raise ToolError("Submission cannot be safely authorized or completed") from None
 
 
-@server.tool(name="phase2a_probe", description="Non-billable protocol test only.")
-def phase2a_probe(fail: bool = False) -> str:
-    if fail:
-        raise ValueError("Probe failed")
-    return "phase2a-ok"
-
-
 @server.tool(
     name="get_product_image_task",
-    description="Read local task history or inspect one locally registered artifact.",
+    description="Read local task history or explicitly request a Team remote refresh.",
 )
 def get_product_image_task(
     task_id: str,
@@ -282,9 +333,12 @@ def get_product_image_task(
     stage: str | None = None,
     revision: int | None = None,
     artifact_id: str | None = None,
+    refresh_remote: bool = False,
 ) -> dict[str, Any]:
-    """Read locally stored task evidence or one artifact; never call a provider."""
+    """Read local evidence; a remote refresh requires explicit opt-in and policy."""
     single_artifact = any(x is not None for x in (stage, revision, artifact_id))
+    if single_artifact and refresh_remote:
+        raise ToolError("Remote refresh is unavailable for a single artifact query")
     if single_artifact and (
         stage not in ("form", "mock")
         or revision is None
@@ -311,20 +365,46 @@ def get_product_image_task(
             int(os.environ["PRODUCT_IMAGE_MAX_DECODED_BYTES"]),
         )
         if not single_artifact:
-            return read_task_view(
+            from .team_delivery import advance
+
+            reconciliation = None
+            if (
+                refresh_remote
+                and config.team_mode_enabled()
+                and all(
+                    os.environ.get(name, "").lower() == "true"
+                    for name in ("ENABLE_REAL_GENERATION", "ENABLE_TEAM_QUERY")
+                )
+            ):
+                try:
+                    advance(
+                        Store(state / "tasks.sqlite"),
+                        task_id,
+                        state,
+                        budget,
+                        attempt_id=attempt_id,
+                    )
+                except (ValueError, OSError, sqlite3.Error):
+                    reconciliation = "team_reconciliation_incomplete"
+            elif refresh_remote:
+                reconciliation = "team_refresh_disabled"
+            view = read_task_view(
                 ReadOnlyStore(state / "tasks.sqlite"),
                 task_id,
                 state,
                 budget,
                 attempt_id=attempt_id,
             )
+            if reconciliation:
+                view["team_reconciliation"] = reconciliation
+            return view
         assert (
             stage in ("form", "mock")
             and revision is not None
             and attempt_id
             and artifact_id
         )
-        return read_artifact(
+        artifact = read_artifact(
             ReadOnlyStore(state / "tasks.sqlite"),
             task_id,
             stage,
@@ -333,10 +413,33 @@ def get_product_image_task(
             artifact_id,
             state,
             budget,
-            include_content=True,
+            include_content=False,
         )
+        if (
+            artifact["delivery_status"] == "delivered"
+            and artifact["file"]["state"] != "verified"
+        ):
+            raise ToolError("Artifact file cannot be safely previewed")
+        return artifact
     except (ArtifactReadError, KeyError, OSError, ValueError, sqlite3.Error):
         raise ToolError("Artifact query could not be safely completed") from None
+
+
+@server.tool(
+    name="get_product_image_file",
+    description="Return the verified delivered original image as MCP image content for the host to save in its workspace; no remote request.",
+)
+def get_product_image_file(
+    task_id: str, attempt_id: str, stage: str, revision: int, artifact_id: str
+) -> dict[str, Any]:
+    """Read one registered artifact by identity; never accept a client file path."""
+    result = get_product_image_task(task_id, attempt_id, stage, revision, artifact_id)
+    if (
+        result.get("delivery_status") != "delivered"
+        or result.get("file", {}).get("state") != "verified"
+    ):
+        raise ToolError("Delivered artifact is unavailable")
+    return result
 
 
 @server.tool(

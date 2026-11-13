@@ -169,19 +169,15 @@ def test_single_artifact_server_uses_readonly_store(tmp_path, monkeypatch):
         sql.lstrip().upper().startswith(("SELECT", "BEGIN")) for sql in statements
     )
     path.unlink()
-    assert (
+    with pytest.raises(ToolError):
         server.get_product_image_task(
             form["task_id"], "mock-attempt", "mock", mock["revision"], "mock-artifact"
-        )["file"]["state"]
-        == "missing"
-    )
+        )
     path.write_bytes(b"corrupt")
-    assert (
+    with pytest.raises(ToolError):
         server.get_product_image_task(
             form["task_id"], "mock-attempt", "mock", mock["revision"], "mock-artifact"
-        )["file"]["state"]
-        == "invalid_or_unreadable"
-    )
+        )
     with pytest.raises(ToolError):
         server.get_product_image_task(
             "wrong-task", "mock-attempt", "mock", mock["revision"], "mock-artifact"

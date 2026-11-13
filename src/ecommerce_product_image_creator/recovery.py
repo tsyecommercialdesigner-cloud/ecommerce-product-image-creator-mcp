@@ -25,8 +25,29 @@ class RecoveryResolution:
 def _verify_observation_source(
     identity: original_query.OriginalIdentity, row: tuple[object, ...]
 ) -> bool:
-    """A response hash and a source label alone do not authenticate history."""
-    return False
+    """Strict observations remain closed; Team observations require active policy."""
+    from .team_query_policy import enabled
+
+    return (
+        enabled()
+        and len(row) >= 18
+        and row[1:14]
+        == (
+            identity.root,
+            identity.candidate_id,
+            identity.task_id,
+            identity.revision,
+            identity.stage,
+            identity.attempt_id,
+            identity.digest,
+            identity.provider,
+            identity.model,
+            identity.endpoint,
+            identity.group,
+            identity.upstream_id,
+            "configured_query_adapter",
+        )
+    )
 
 
 def resolve_recorded(

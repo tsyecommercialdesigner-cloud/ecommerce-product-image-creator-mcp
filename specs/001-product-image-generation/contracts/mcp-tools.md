@@ -1,6 +1,10 @@
-# MCP 工具契约（候选，未实现）
+# MCP 工具契约
 
-MCP Server 名称与 Host 暴露名称、SDK 方法和具体 JSON Schema 均待锁版本联调。本契约规定业务字段及约束，非已实现 API。供应商模型、端点、分组和响应的适配约束见 [供应商适配契约](provider-adapters.md)。工具发现不等于授权；`isError` 或结果状态按锁定 SDK/协议实测映射。关闭供应商 SDK 隐式重试；仅在业务层按已授权、可安全重试的有限策略执行，未知结果不重提。
+## 当前实现状态（2026-11-13）
+
+本地 stdio 已提供 Prepare、Submit、Get Task 及读取已登记原图的 `get_product_image_file`。Team Mode 默认选择，生成、查询及下载开关默认关闭；已启用时的业务操作和限制见 [成员手册](../../../MANUAL.md)。Sunburst 和 Flare 的 Form、Mock 在指定输入组合下已完成真实图片验收，结果见 [验收记录](../evidence/mvp-team-acceptance-20261113.md)。以下历史契约仍包含早期 Strict 授权及候选接口描述；其中未实现、待联调和自动重试条文不得直接视为当前 Team 实现。
+
+供应商模型、端点、分组和响应的适配约束见 [供应商适配契约](provider-adapters.md)。工具发现不等于人工批准；`isError` 或结果状态按锁定 SDK/协议实测映射。Team Mode 未启用自动付费重试，未知结果不重提。
 
 **分阶段业务契约**：形态阶段一次正常绘图产生一张 F/L/R/B/T/Q 六视图组合图，形态各视图左上角由模型标注约定字母；经人工确认后，Mock 阶段一次正常绘图产生一张包含六视图的包装 Mock 组合图，交运营人员审核。两阶段均可明确请求多轮修订并保留历史；Q 为右上 45° 正交。Host Agent 构造提示词，Server 不调用独立 LLM、不拆图或合成。
 
@@ -72,6 +76,18 @@ Mock 首次提交在本地资格消费事务中和发送边界前分别复核来
 
 **输出**：分别报告形态组合与包装 Mock 组合的阶段、版本、attempt、产物和人工审核状态，并返回 `task_id`、`revision`、`previous_attempt_id?`、本地/上游/交付三个独立状态、unknown 风险、可恢复动作、时间及可得绘图 cost；cost 单位为 ฿、缺失为 unknown，用户提供的 1 ฿ = ¥1.35 仅为参考值。仅在文件可读、摘要与任务和版本归属核验通过时返回产物引用；上游成功不等于交付成功，未人工审核不得标记批准。保留历史版本；查询不触发重新生成。
 
+Team Mode 下，已交付且当前文件核验通过的产物在 `file.path` 返回本地路径；缺失、损坏或身份未核验时不返回路径。公开工具包括 `prepare_product_image`、`submit_product_image`、`get_product_image_task` 和 `get_product_image_file`；诊断探针只用于隔离测试。
+
+`get_product_image_task` 对当前可核验的已交付产物同时返回 MCP `ImageContent`，预览长边不超过 1024 像素；结构化任务数据和原始文件路径保留，图片 Base64 不放入文本 JSON。单产物查询发现文件损坏或缺失时返回工具错误；任务列表继续报告异常状态。预览只来自数据库中已登记且摘要重新核验的 Artifact，不能以客户端路径指定读取对象。
+
+工具还返回已核验原图的本地 Markdown 图片引用，供支持的 Host 在回复正文中使用，同时保留原文件路径。是否渲染取决于实际 Host 界面。
+
+`get_product_image_file` 以 Task、Attempt、Stage、Revision 和 Artifact 身份读取已交付且重新核验的原图，将原图作为 MCP ImageContent 返回；不接受客户端提供文件路径、不访问供应商。Host 能否把图片保存到其工作区及呈现文件由 Host 决定。
+
+2026-11-12 在 Claude Desktop 4.23118.1.0 实测：Claude 保存了真实 Form 原始 PNG，保存文件 SHA-256 与 Artifact 登记摘要一致，并在对话中提供文件卡片及侧边图片查看器；该结果不是正文内嵌图片。既有 ImageContent 和本地路径继续可用。
+
+已明确记录的 Team 负责人概念原型审核，允许用于内部 Mock；背面、侧面和拉链的实物准确性仍未验证。Team 来源为运营声明，不是密码学身份或真人在 Host 中确认的证明；Strict Mode 原有审核来源策略不变。
+
 **已实现的单产物子范围**：传入 `task_id`、`stage`、`revision`、`attempt_id` 和 `artifact_id`，返回记录的上游及交付状态、当前文件校验、产物审核及来源信息。当前文件经受控根目录、资源、格式及摘要校验，且历史状态为上游成功和已交付时，`artifact_reference` 为同次校验字节编码的 data URI；否则为 null。`mime.detected` 是当前检测值，`mime.historical` 为 unknown。审核来源仍为 unverified。
 
 **T042 本地只读子范围**：仅传 `task_id` 或附带 `attempt_id`，可读取当前修订、历史阶段、候选和尝试，并分别报告本地发送标记、持久化远程状态、观察和来源核验结论、产物当前完整性与审核、生成费用及查询费用。费用仅为按币种已知小计，完整性默认 unverified；历史时间缺失为 unknown。受控时间证据和可信终态均成立时才报告耗时，生产时间来源验证器默认拒绝。查询不访问供应商，不授予执行资格；数据库读取使用同一 SQLite 只读事务，文件与数据库之间不构成原子快照。真实供应商、Host 和完整 T042 验收仍未通过。
@@ -92,6 +108,20 @@ Mock 首次提交在本地资格消费事务中和发送边界前分别复核来
 
 `prepare_product_image` 可引用既有 `revision_decision_id`；该标识仅用于查找范围绑定记录，不能作为可信确认。生产默认验证器仍拒绝尚未证实的来源，记录签发与 Host 交接未完成。
 
+Team Mode 可由本地团队操作员记录明确的输入变更准备决定（`team-local-input-change` / `team-explicit-preparation`）；现有任务、原修订、输入摘要、目标素材和有效期绑定检查仍适用。该记录是本地操作声明，不是 Host 真人签名，也不单独开启真实生成；Strict Mode 保持默认拒绝。
+
+2026-11-13 起 Team Mode 为默认；进程环境显式设置 `TEAM_MODE=false` 选择 Strict Mode。现有部署如依赖默认 Strict，应在升级前显式配置。真实生成、远程查询和下载的独立开关仍默认关闭；模式选择不会自动发送网络请求。
+
 ### 不确定性预览的离线追溯
 
 无收费提交可在适用业务决定和独立收费授权替身均通过时记录预览依据，提交结果及现有产物查询分别返回关联决定、假设、未验证结构和当前决定状态。历史无依据返回 unknown；撤销后保留当时依据。此能力不证明 Host 已验证、收费授权已取得或已完成 T042 的任务汇总。
+
+## 2026-11-12 Team MVP 模式（已批准，未启用）
+
+负责人提出内部 Team MVP：管理员配置凭据，工具调用代表一次业务操作，不依赖独立签发服务，不自动重试收费请求；Strict Authorization Mode 的独立可信授权机制延期。普通 MCP 调用可能由自动放行的 Agent 发起，不能证明自然人确认。宪法 4.0.0 将 Team Mode 设为默认，真实生成开关默认关闭。Team Form 与 Mock 的 MCP 提交已接入既有 SQLite Attempt、发送边界和单次 HTTPS 传输；真实 Form 已交付，Mock 已获网关接受，其完成状态尚待查询。
+
+### Team 原任务查询与交付（离线替身）
+
+Team Get 默认只读取本地数据；调用方须显式提供 `refresh_remote=true`，且处于 Team Mode、管理员开启 `ENABLE_REAL_GENERATION`、`ENABLE_TEAM_QUERY` 并将 `TEAM_GATEWAY_URL` 设置为实际固定网关 Edits 地址，才会尝试受控远程刷新。下载还须开启 `ENABLE_TEAM_DOWNLOAD` 并通过 `TEAM_DOWNLOAD_HOSTS` 配置精确域名白名单。Team 查询核验原 Attempt 和上游 ID，下载复用 T049 和 T048；已登记 Artifact 不再下载。下载及本地保存失败不重新生成，Mock 仍要求有效 Form 审核。
+
+**Team Mode 摘要政策（负责人批准）**：受控网关响应及原 Attempt／上游 Task ID 绑定可作为来源证据；网关未提供独立预期摘要时，允许将下载后计算的 SHA-256 仅作为本地文件完整性记录，明确标注供应商独立摘要未提供。Strict Mode 仍要求独立预期摘要。TLS、DNS、图片校验、资源预算和无覆盖发布要求不变。本政策不代表生产下载已接通或真实供应商已验证。

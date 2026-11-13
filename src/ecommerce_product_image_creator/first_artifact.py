@@ -30,7 +30,9 @@ def _verify_digest_source(
     locator: artifact_locator.LocatorEvidence, digest: str, mime: str
 ) -> bool:
     """An opaque locator or caller-supplied hash is not content attestation."""
-    return False
+    from .team_artifact_evidence import recorded
+
+    return recorded(locator, digest, mime)
 
 
 def _hook(phase: str) -> None:

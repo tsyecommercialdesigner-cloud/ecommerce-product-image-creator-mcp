@@ -64,13 +64,20 @@ def read_observations(
 def _verify_original_binding(
     db: sqlite3.Connection, identity: OriginalIdentity
 ) -> bool:
-    """No production provenance verifier has been established."""
-    return False
+    """Strict mode remains closed; explicit Team refresh uses its bound attempt."""
+    from .team_query_policy import original_binding
+
+    return original_binding(db, identity)
 
 
 def _query_adapter(identity: OriginalIdentity) -> Any:
-    """No real query transport is configured."""
-    raise RuntimeError("Query adapter unavailable")
+    """Use the opt-in Team transport after the original-query identity checks."""
+    from .team_transport import TeamSettings
+    from .team_transport import query_once as team_query_once
+
+    return team_query_once(
+        identity.upstream_id, identity.endpoint, TeamSettings.from_environment()
+    )
 
 
 def _supplier_cost_event(
@@ -81,8 +88,9 @@ def _supplier_cost_event(
 
 
 def _query_account_scope(identity: OriginalIdentity) -> str | None:
-    """No production account-scope attestation is available."""
-    return None
+    from .team_query_policy import enabled
+
+    return "team-gateway" if enabled() and identity.endpoint == ENDPOINT else None
 
 
 def _after_query_received() -> None:
@@ -737,6 +745,10 @@ def query_once(
                 state, reason, row.lastrowid, invocation_id, adapter_invoked
             )
         _after_query_observation()
+        if result.state == "succeeded" and result.observation_id is not None:
+            from .team_query_policy import capture
+
+            capture(identity, result.observation_id, payload)
         if raw_response is not None and result.state in {"succeeded", "failed"}:
             try:
                 from .generation_cost import record_supplier_response_cost

@@ -111,10 +111,12 @@ def test_missing_corrupt_digest_and_format(tmp_path, monkeypatch):
         and result["file"]["state"] == "missing"
     )
     assert result["upstream_status"] == "succeeded"
+    assert "path" not in result["file"]
     path.write_bytes(b"bad image")
     assert read()["file"]["state"] == "invalid_or_unreadable"
     Image.new("RGB", (5, 5), "red").save(path)
     assert read()["file"]["state"] == "digest_mismatch"
+    assert "path" not in read()["file"]
     Image.new("RGB", (5, 5), "red").save(path, format="JPEG")
     assert read()["file"]["state"] == "invalid_or_unreadable"
     with store._connect() as db:
@@ -283,7 +285,10 @@ def test_mcp_artifact_response_and_recovery(tmp_path, monkeypatch):
     import hashlib
     import json
     import sys
+    from io import BytesIO
+    from pathlib import Path
 
+    from mcp import types
     from mcp.client.session import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
@@ -379,10 +384,23 @@ def test_mcp_artifact_response_and_recovery(tmp_path, monkeypatch):
                         assert data["preview"]["structure_verified"] is False
                     else:
                         assert data["preview"]["status"] == "unknown"
-                    ref = data["artifact_reference"]
-                    blob = base64.b64decode(ref.split(",", 1)[1], validate=True)
-                    assert hashlib.sha256(blob).hexdigest() == data["digest"]
-                    assert str(state) not in str(data)
+                    assert data["artifact_reference"] is None
+                    assert (
+                        hashlib.sha256(
+                            Path(data["file"]["path"]).read_bytes()
+                        ).hexdigest()
+                        == data["digest"]
+                    )
+                    pictures = [
+                        part
+                        for part in result.content
+                        if isinstance(part, types.ImageContent)
+                    ]
+                    assert len(pictures) == 1 and pictures[0].data not in str(data)
+                    with Image.open(
+                        BytesIO(base64.b64decode(pictures[0].data, validate=True))
+                    ) as im:
+                        assert max(im.size) <= 1024
                     if stage == "mock":
                         assert data["form_source"]["form_revision"] == 1
                 denied = await session.call_tool(
@@ -430,8 +448,9 @@ def test_mcp_artifact_response_and_recovery(tmp_path, monkeypatch):
             }
             path.write_bytes(b"corrupt")
             result = await session.call_tool("get_product_image_task", args)
-            assert result.structured_content["file"]["state"] == "invalid_or_unreadable"
-            assert result.structured_content["artifact_reference"] is None
+            assert result.is_error and not any(
+                isinstance(p, types.ImageContent) for p in result.content
+            )
             task_view = await session.call_tool(
                 "get_product_image_task", {"task_id": form["task_id"]}
             )
@@ -446,8 +465,9 @@ def test_mcp_artifact_response_and_recovery(tmp_path, monkeypatch):
             )
             Image.new("RGB", (5, 5), "red").save(path)
             result = await session.call_tool("get_product_image_task", args)
-            assert result.structured_content["file"]["state"] == "digest_mismatch"
-            assert result.structured_content["artifact_reference"] is None
+            assert result.is_error and not any(
+                isinstance(p, types.ImageContent) for p in result.content
+            )
         path.unlink()
         async with stdio_client(params) as (r, w), ClientSession(r, w) as session:
             await session.initialize()
@@ -461,11 +481,8 @@ def test_mcp_artifact_response_and_recovery(tmp_path, monkeypatch):
                     "artifact_id": "mock-artifact",
                 },
             )
-            data = result.structured_content
-            assert data is not None and data["delivery_status"] == "delivered"
-            assert (
-                data["file"]["state"] == "missing"
-                and data["artifact_reference"] is None
+            assert result.is_error and not any(
+                isinstance(p, types.ImageContent) for p in result.content
             )
 
     asyncio.run(run())

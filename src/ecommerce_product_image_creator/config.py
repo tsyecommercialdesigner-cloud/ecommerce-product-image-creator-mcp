@@ -17,6 +17,12 @@ class ConfigError(ValueError):
     """Configuration is absent, invalid, or unreadable; details exclude values."""
 
 
+def team_mode_enabled() -> bool:
+    """Team is default; explicitly disabling it selects the strict policy."""
+    value = os.environ.get("TEAM_MODE")
+    return value is None or value.lower() == "true"
+
+
 @dataclass(frozen=True)
 class Config:
     api_key: str = field(repr=False)

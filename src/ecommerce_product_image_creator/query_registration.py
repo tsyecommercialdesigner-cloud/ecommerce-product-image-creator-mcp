@@ -62,8 +62,10 @@ class Registration:
 def _verify_query_authorization(
     db: sqlite3.Connection, evidence: QueryAuthorization
 ) -> bool:
-    """Production has no authenticated query fee authorization channel."""
-    return False
+    """Permit the explicit Team refresh only within its request-local boundary."""
+    from .team_query_policy import authorization
+
+    return authorization(db, evidence)
 
 
 def _verify_query_revocation(

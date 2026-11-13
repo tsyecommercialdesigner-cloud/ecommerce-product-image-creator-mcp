@@ -61,7 +61,27 @@ def _verify_download_scope(
     locator: artifact_locator.LocatorEvidence, url: str, digest: str, mime: str
 ) -> bool:
     """Production has no trusted URL, digest, access or charge authorization."""
-    return False
+    from .team_artifact_evidence import allowed_host, recorded
+    from .team_query_policy import enabled, response, url_hash
+
+    if (
+        not enabled()
+        or locator.source != "team-gateway"
+        or locator.handle != url_hash(url)
+    ):
+        return False
+    host, _ = _target(url)
+    captured = response()
+    if not allowed_host(host):
+        return False
+    if recorded(locator, digest or None, mime or None, url):
+        return True
+    return bool(
+        isinstance(captured, tuple)
+        and captured[1] == locator.observation_id
+        and not digest
+        and not mime
+    )
 
 
 def _resolve(host: str, port: int) -> tuple[str, ...]:
@@ -71,7 +91,10 @@ def _resolve(host: str, port: int) -> tuple[str, ...]:
 
 def _verify_dns_policy(host: str, port: int) -> bool:
     """No production DNS/network policy has been approved."""
-    return False
+    from .team_artifact_evidence import allowed_host
+    from .team_query_policy import enabled
+
+    return enabled() and port == 443 and allowed_host(host)
 
 
 def _open_pinned(
@@ -195,15 +218,17 @@ def fetch_candidate(
     image_budget: ResourceBudget,
 ) -> DownloadCandidate:
     """Acquire an offline candidate only; this does not publish or update SQLite."""
+    team_local = digest == "" and mime == ""
     if (
-        not re.fullmatch(r"[0-9a-f]{64}", digest)
-        or mime not in ("image/png", "image/jpeg")
+        (not team_local and not re.fullmatch(r"[0-9a-f]{64}", digest))
+        or (not team_local and mime not in ("image/png", "image/jpeg"))
         or limits.max_bytes > image_budget.max_file_bytes
     ):
         raise ValueError("download_scope_invalid")
     evidence = artifact_locator.read_locator(store, locator_id)
     if (
         evidence is None
+        or (team_local and evidence.source != "team-gateway")
         or evidence.expires <= time.time()
         or not _verify_download_scope(evidence, url, digest, mime)
     ):
@@ -232,14 +257,18 @@ def fetch_candidate(
                 raise DownloadError("download_peer_unverified")
             if response.status_code != 200:
                 raise DownloadError("download_status_rejected")
-            if (
+            response_mime = (
                 response.headers.get("content-type", "")
                 .split(";", 1)[0]
                 .strip()
                 .lower()
-                != mime
+            )
+            if response_mime not in ("image/png", "image/jpeg") or (
+                not team_local and response_mime != mime
             ):
                 raise DownloadError("download_mime_mismatch")
+            if team_local:
+                mime = response_mime
             length = response.headers.get("content-length")
             if length is not None and (
                 not length.isascii()
@@ -267,9 +296,15 @@ def fetch_candidate(
             raise DownloadError(str(exc)) from None
         raise ValueError("download_failed") from None
     result = bytes(data)
-    if hashlib.sha256(result).hexdigest() != digest:
+    computed = hashlib.sha256(result).hexdigest()
+    if not team_local and computed != digest:
         raise ValueError("download_digest_mismatch")
     validate_image_bytes(result, mime, image_budget)
+    if team_local:
+        from .team_artifact_evidence import record
+
+        digest = computed
+        record(evidence, url, digest, mime)
     with closing(store._connect()) as db:
         if (
             artifact_locator.read_locator(store, locator_id) != evidence

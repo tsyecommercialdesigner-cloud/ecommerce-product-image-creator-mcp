@@ -2,6 +2,27 @@
 
 以下 2026-11-05 状态是历史离线阶段记录；目前已具备隔离替身下的跨候选恢复及受控下载交付，真实供应商协议和生产调用仍未验收。当前范围见 [离线开发基线](../evidence/mvp-offline-baseline-20261112.md)。
 
+## 2026-11-12 T055 双模型无收费协议准备
+
+下表是待验证候选；参考输入数量为单次请求输入张数，每阶段目标均为**一张**六视角组合图。`reverse` 是本地执行快照标签，网关实际路由／账号组尚未独立确认。
+
+| 模型 | 阶段 | 参考输入边界 | Endpoint / Group 候选 | 字段与异步响应候选 | 证据等级 |
+| --- | --- | --- | --- | --- | --- |
+| gpt-image-2.5-sunburst | Form | 1 或 6 张形态参考 | POST `/v1/images/edits?async=true` / reverse 待确认 | `model`、`prompt`、重复 `image[]`；顶层 task_id、原任务查询候选 | T045 替身 1/6；历史 Sunburst 异步 2 PNG 成功，非本项目及非边界证明；本项目真实未测 |
+| gpt-image-2.5-sunburst | Mock | 1 张已审核 Form + 1 或 2 张设计图（2/3） | 同上 | 同上 | T045 替身 2/3；真实 Mock 组合未测 |
+| gpt-image-2.5-flare | Form | 1 或 6 张形态参考 | 同上 | 同上 | T045 替身 1/6；本项目真实未测 |
+| gpt-image-2.5-flare | Mock | 1 张已审核 Form + 1 或 2 张设计图（2/3） | 同上 | 同上 | T045 替身 2/3；本项目真实未测 |
+
+证据分层：仓库保存的[供应商资料](api-endpoints_gptimage-2.5-series.md) 中 Edits schema 声明 `image`，且描述逆向组支持 `model/prompt/size/image/quality`；历史独立请求使用重复 `image[]` 有成功观察，不能证明网关当前接受任一字段或所有组合。T045 接收替身仅证明代码发送重复 `image[]`、冻结字节和 MIME；不证明供应商行为。本项目真实服务四组合均未测。当前候选仅发送 `model`、`prompt` 和图片，不猜测组路由或增加 `n`。若正式确认字段不一致，需单独设计最小适配及离线验证，不自动回退或试错。
+
+本地候选校验 PNG/JPEG 的实际内容及 MIME；供应商按模型、组别的允许 MIME、单图／总大小和输入上限均 unknown，不能把历史 8 图成功或 9 图失败及错误文字视为硬上限。供应商资料对尺寸描述与 schema 枚举存在差异，不能直接作为当前网关的已验证限制。输出目标一张不代表网关已保证一张。
+
+资料和历史样例提供 `GET /v1/images/tasks/{task_id}`、`NOT_START`／`IN_PROGRESS`／`SUCCESS`／`FAILURE` 与结果 URL 候选；本地解析器核对 ID 和状态，响应缺失、冲突或不可判定保留 unknown。历史样例有顶层 task_id 及 `data.data.data` 结果，不代表四组合的统一保证。历史失败信息、451、429、5xx 和超时不自动证明未执行。查询与下载是否收费、价格、账单含义、结果 URL 的来源许可均 unknown；历史 `cost` 单位与换算仅是用户提供的口径，未经账单核验，不作为当前报价。
+
+供应商相关项目的 [ComfyUI 节点更新记录](https://github.com/T8mars/Comfyui-zhenzhen/blob/main/README.md) 列出 `gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst`，可作为模型名称的补充声明；该节点记录不证明本项目账号的异步 Edits、分组、multipart 字段或费用。2026-11-12 再次尝试读取网关 Apifox 编辑接口未能取得页面内容。
+
+公开核验：网关首页仅返回需要 JavaScript 的应用壳，记录的 [Apifox 编辑接口](https://app.apifox.com/web/project/3868318/apis/api-139454705-run) 本轮无法读取；[OpenAI 官方 Images Edit 参考](https://developers.openai.com/api/reference/resources/images/methods/edit) 是上游接口参考，不能证明该第三方网关的分组、字段或收费。具体执行计划及门禁见 [provider-validation-plan.md](provider-validation-plan.md)。
+
 ## 2026-11-05 离线实现范围
 
 | 项目 | 来源和候选 | 本轮离线结果 | 真实网关未决 |
