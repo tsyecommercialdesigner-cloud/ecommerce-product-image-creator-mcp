@@ -45,7 +45,7 @@ Team 模式默认开启，实际生成、远程查询和下载的三个开关默
 
 ## 3. Host 本地 stdio 配置
 
-以下片段以第 1 节安装路径为准；合并到现有配置，保留其他 Server，勿在配置中填 API Key。输入和状态目录须预先创建；`PRODUCT_IMAGE_MAX_*` 是技术资源预算，不是统一业务尺寸政策。`ENABLE_TEAM_QUERY=true` 仍需调用方显式刷新；开启下载后一次刷新可能顺序查询并下载。
+以下片段以第 1 节安装路径为准；合并到现有配置，保留其他 Server，勿在配置中填 API Key。先完成第 1 节的锁定安装；`uv --directory ... run --no-sync` 固定项目目录并复用已安装环境，不在启动时同步依赖。如果 Host 找不到 `uv`，将 `command` 替换为该机器上 `uv.exe` 的绝对路径。输入和状态目录须预先创建；`PRODUCT_IMAGE_MAX_*` 是技术资源预算，不是统一业务尺寸政策。`ENABLE_TEAM_QUERY=true` 仍需调用方显式刷新；开启下载后一次刷新可能顺序查询并下载。
 
 ### Codex CLI
 
@@ -53,8 +53,8 @@ Team 模式默认开启，实际生成、远程查询和下载的三个开关默
 
 ```toml
 [mcp_servers.ecommerce-product-image-creator]
-command = 'D:/MCP/ecommerce-product-image-creator-mcp/.venv/Scripts/python.exe'
-args = ['-m', 'ecommerce_product_image_creator.server']
+command = 'uv'
+args = ['--directory', 'D:/MCP/ecommerce-product-image-creator-mcp', 'run', '--no-sync', 'python', '-m', 'ecommerce_product_image_creator.server']
 
 [mcp_servers.ecommerce-product-image-creator.env]
 PRODUCT_IMAGE_INPUT_ROOT = 'D:/MCP/ecommerce-product-image-creator-mcp/runtime-data/inputs'
@@ -78,8 +78,8 @@ TEAM_DOWNLOAD_HOSTS = 'files.anyroutes.cn'
 {
   "mcpServers": {
     "ecommerce-product-image-creator": {
-      "command": "D:/MCP/ecommerce-product-image-creator-mcp/.venv/Scripts/python.exe",
-      "args": ["-m", "ecommerce_product_image_creator.server"],
+      "command": "uv",
+      "args": ["--directory", "D:/MCP/ecommerce-product-image-creator-mcp", "run", "--no-sync", "python", "-m", "ecommerce_product_image_creator.server"],
       "env": {
         "PRODUCT_IMAGE_INPUT_ROOT": "D:/MCP/ecommerce-product-image-creator-mcp/runtime-data/inputs",
         "PRODUCT_IMAGE_STATE_DIR": "D:/MCP/ecommerce-product-image-creator-mcp/runtime-data/state",
@@ -109,8 +109,8 @@ TEAM_DOWNLOAD_HOSTS = 'files.anyroutes.cn'
       config:
         serverName: ecommerce-product-image-creator
         transport: stdio
-        command: D:/MCP/ecommerce-product-image-creator-mcp/.venv/Scripts/python.exe
-        args: ['-m', 'ecommerce_product_image_creator.server']
+        command: uv
+        args: ['--directory', 'D:/MCP/ecommerce-product-image-creator-mcp', 'run', '--no-sync', 'python', '-m', 'ecommerce_product_image_creator.server']
         env:
           PRODUCT_IMAGE_INPUT_ROOT: D:/MCP/ecommerce-product-image-creator-mcp/runtime-data/inputs
           PRODUCT_IMAGE_STATE_DIR: D:/MCP/ecommerce-product-image-creator-mcp/runtime-data/state
