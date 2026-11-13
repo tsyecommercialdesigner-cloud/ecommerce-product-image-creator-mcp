@@ -1,0 +1,34 @@
+[project]
+name = "ecommerce-product-image-creator-mcp"
+version = "0.1.0"
+description = "Local MCP server for product image creation"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "mcp==2.3.0",
+    "pillow==12.1.0",
+]
+
+[dependency-groups]
+dev = ["pyright==1.1.414", "pytest==9.2.0", "ruff==0.17.3"]
+
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ecommerce_product_image_creator"]
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
