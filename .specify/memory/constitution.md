@@ -1,50 +1,69 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# ecommerce-product-image-creator-mcp 项目宪法
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. 需求与实现可追溯
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+功能的规范、方案、任务、契约、实现和验收证据必须相互对应。发现差异时必须记录并处理，
+不得通过修改规范掩盖实现缺陷。验收结果必须区分通过、失败、不适用和未验证。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. 模块职责清晰
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+协议适配、业务逻辑和外部依赖必须按职责分离；模块边界及依赖方向须能通过代码审查和
+相应测试核验。模块拆分以实际需求为依据，不预设业务能力或模块数量。
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Python 质量与类型安全
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+Python 公开接口和关键数据结构必须使用类型标注。项目必须提供实际可执行的格式、静态检查、
+类型检查和测试入口，失败时返回非零状态；不适用的检查须说明原因。类型检查工具按实际技术栈
+选定，覆盖范围和严格程度由项目技术方案确定，不预设具体工具或阈值。
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. MCP 契约真实
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+每项能力必须明确输入、输出、错误、权限及副作用，声明必须与实现一致。协议错误和工具执行
+失败须按实际 SDK 与协议区分；业务失败不得伪装成成功。未实现或未验证的能力不得声称已实现
+或已验证。
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. 验证与证据
+
+按变更风险覆盖正常、边界和失败路径，并使用实际 SDK 和协议验证适用的 MCP 行为。静态检查、
+隔离测试、Host 联调及真实业务验证必须分别报告；未执行项不得标为通过。测试证据必须脱敏，
+测试后仅清理本次创建的临时资源。
+
+### VI. 安全与副作用
+
+服务端及执行环境必须落实输入校验、最小权限和敏感信息保护。写入或收费操作须核对授权；
+结果不明时，须按状态与幂等边界恢复，不得盲目重试。Skill 或 MCP 声明不能代替实际授权。
+
+内部 Team Mode 为默认模式，管理员可显式选择 Strict Mode。管理员负责限制凭据与 Host 环境；有权使用 Team 环境的调用方通过明确调用生成工具发起的单次操作，按团队政策视为该次操作授权。该机制不证明调用由自然人逐次确认。真实请求默认关闭，单次操作不得隐式新增生成请求；结果不明按状态恢复，不得盲目重试。Strict Mode 继续要求按适用规则核对授权。
+
+### VII. 依赖与技术决策可追溯
+
+Python 使用 uv、独立环境和锁定依赖；依赖声明与锁文件保持一致。重要技术选择及变更须在方案中
+记录依据、影响和验证结果。MCP SDK、协议版本、传输方式及 Host 兼容范围必须分别核实，
+并在技术方案中记录采用的版本、选择依据和验证结果。
+
+## 技术与安全约束
+
+工程、能力契约和运行边界的具体要求以 [工程与 CI/CD 规范](../../docs/engineering/ENGINEERING-GUIDE.md)
+为准；安装、凭据和交付细节以 [手册与交付规范](../../docs/delivering/MANUAL-WRITING-GUIDE.md)
+为准。现有规范是目标要求，不代表相应源码、检查、流水线或集成已经落实。
+
+## 开发与验证流程
+
+`main` 保持可发布，默认在 `dev` 分支开发；完成后发起 PR 合并入 `main`。遵循现有授权、
+评审、CI 和合并后复验要求；未落实的门禁不得报告为已通过。三个根目录约定文件提供开发人员
+及 Agent 的操作入口。
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+本宪法维护项目稳定原则；具体操作细则由上述指南维护，避免重复维护。遇到冲突或无法确定的
+重大原则时，须记录差异并交由项目维护者确认，不得自行假定。分支职责遵循本宪法中的约定。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+宪法修订须记录变更原因、影响和必要迁移措施，经评审及授权后生效。版本采用语义版本：不兼容的
+原则删除或重新定义递增主版本；新增原则或实质扩展递增次版本；澄清及非语义修订递增补丁版本。
+方案和评审须检查适用原则的符合情况，并记录偏差、处理方式与验证证据。
+
+2026-11-13 修订：负责人批准 Team Mode 设为默认，并允许显式选择 Strict Mode；真实外部请求仍须独立开启，既有部署如需维持 Strict 应设置 `TEAM_MODE=false`。该默认授权政策变更按不兼容原则调整递增主版本。
+
+**Version**: 4.0.0 | **Ratified**: 2026-10-31 | **Last Amended**: 2026-11-13

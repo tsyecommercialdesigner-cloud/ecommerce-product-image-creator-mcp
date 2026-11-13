@@ -1,0 +1,61 @@
+name: Windows offline checks
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-offline:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      UV_NO_PROGRESS: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node for Pyright
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.12.9'
+          enable-cache: false
+      - name: Install pinned Python
+        run: uv python install
+      - name: Install locked dependencies
+        run: uv sync --locked --group dev
+      - name: Verify Python version
+        run: uv run --no-sync python -c "import sys; assert sys.version_info[:3] == (3, 12, 14), sys.version"
+      - name: Verify lock consistency
+        run: uv sync --locked --check --group dev
+      - name: Check formatting
+        run: uv run --no-sync ruff format --check src tests
+      - name: Check lint
+        run: uv run --no-sync ruff check .
+      - name: Check types
+        run: uv run --no-sync pyright
+      # Python-only test guard; this does not block native processes or OS egress.
+      - name: Run full offline test suite
+        run: |
+          $env:CI_NETWORK_GUARD = '1'
+          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'tests/ci_guard'
+          uv run --no-sync python -c "import sitecustomize, socket; assert socket.socket.connect.__module__ == 'sitecustomize'"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $testRoot = Join-Path $env:GITHUB_WORKSPACE '.cache'
+          New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
+          $testBase = Join-Path $testRoot ("ci-pytest-{0}-{1}" -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT)
+          if (Test-Path -LiteralPath $testBase) { throw 'Test base already exists' }
+          uv run --no-sync pytest -q --basetemp $testBase
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
