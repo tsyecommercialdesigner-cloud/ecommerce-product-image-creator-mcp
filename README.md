@@ -4,7 +4,7 @@
 
 负责人已验收两种模型的 Form 和 Mock 真实结果。该验证采用特定网关、单次输入组合和人工操作；不代表所有输入数量、网关或使用环境均已验证。Team 模式下真实生成默认关闭，启用后提交可能产生费用；超时或结果未知时不要重新生成。
 
-**当前工作区尚未形成包含上述功能的已发布版本。** GitHub 现有通过 Windows CI 的旧基线不包含当前完整功能，请勿把它当作此版安装包。待提交、CI 和发布完成后，按 [成员手册](MANUAL.md) 中的固定版本安装。
+当前发布版本为 [v0.1.0](https://github.com/tsyecommercialdesigner-cloud/ecommerce-product-image-creator-mcp/releases/tag/v0.1.0)，对应提交 `994a45f5a8ff5d8cc421315492e42e4a55379750`。请按 [成员手册](MANUAL.md) 安装该固定版本；[Windows CI](https://github.com/tsyecommercialdesigner-cloud/ecommerce-product-image-creator-mcp/actions/runs/43372471051) 和 [发布安装检查](https://github.com/tsyecommercialdesigner-cloud/ecommerce-product-image-creator-mcp/actions/runs/43373460155) 分别记录其验证范围。
 
 - 运行环境：Windows，Python 3.12.14，uv 0.12.9；依赖由 `uv.lock` 固定。
 - 本地 stdio Host：Codex CLI、Claude Desktop、DeepSeek Harness Desktop（desktop Profile）；各自显示方式不同，见手册。
