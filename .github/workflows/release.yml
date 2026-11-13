@@ -1,0 +1,121 @@
+name: Windows source release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-release:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    outputs:
+      commit: ${{ steps.gate.outputs.commit }}
+      ci_url: ${{ steps.gate.outputs.ci_url }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify tag, main head and Windows CI
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RELEASE_TAG -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Expected a stable semantic version tag' }
+          $commit = (git rev-parse 'HEAD^{commit}').Trim()
+          if ($LASTEXITCODE -ne 0 -or $commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Cannot resolve tag commit' }
+          $main = gh api "repos/$env:GH_REPO/git/ref/heads/main" --jq '.object.sha'
+          if ($LASTEXITCODE -ne 0 -or $main.Trim() -cne $commit) { throw 'Release tag must point to current main head' }
+          $runs = gh run list --repo $env:GH_REPO --workflow ci.yml --branch main --event push --limit 100 --json headSha,status,conclusion,url | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect Windows CI runs' }
+          $ci = @($runs | Where-Object { $_.headSha -ceq $commit -and $_.status -eq 'completed' -and $_.conclusion -eq 'success' } | Select-Object -First 1)
+          if ($ci.Count -ne 1) { throw 'No successful main push CI for this exact commit' }
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+          "ci_url=$($ci[0].url)" >> $env:GITHUB_OUTPUT
+      - name: Set up uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.12.9'
+          enable-cache: false
+      - name: Install locked runtime from tag
+        run: |
+          uv python install
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv sync --locked --no-dev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv sync --locked --check --no-dev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify version and MCP tool discovery
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          PYTHONUTF8: '1'
+        run: |
+          @'
+          import asyncio
+          import os
+          import sys
+          import tomllib
+          from mcp.client.session import ClientSession
+          from mcp.client.stdio import StdioServerParameters, stdio_client
+
+          assert sys.version_info[:3] == (3, 12, 14), sys.version
+          with open('pyproject.toml', 'rb') as f:
+              assert 'v' + tomllib.load(f)['project']['version'] == os.environ['RELEASE_TAG']
+
+          async def main():
+              params = StdioServerParameters(command=sys.executable, args=['-m', 'ecommerce_product_image_creator.server'])
+              async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+                  await session.initialize()
+                  names = {tool.name for tool in (await session.list_tools()).tools}
+                  assert {'prepare_product_image', 'submit_product_image', 'get_product_image_task'} <= names, names
+
+          asyncio.run(main())
+          '@ | uv run --no-sync python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  publish:
+    needs: verify-release
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish verified source release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          VERIFIED_COMMIT: ${{ needs.verify-release.outputs.commit }}
+          CI_URL: ${{ needs.verify-release.outputs.ci_url }}
+          RELEASE_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tagSha = gh api "repos/$env:GH_REPO/commits/$env:RELEASE_TAG" --jq '.sha'
+          if ($LASTEXITCODE -ne 0 -or $tagSha.Trim() -cne $env:VERIFIED_COMMIT) { throw 'Tag changed after verification' }
+          $mainSha = gh api "repos/$env:GH_REPO/git/ref/heads/main" --jq '.object.sha'
+          if ($LASTEXITCODE -ne 0 -or $mainSha.Trim() -cne $env:VERIFIED_COMMIT) { throw 'main changed after verification' }
+          $notes = @"
+          Source release: $env:RELEASE_TAG
+
+          Commit: $env:VERIFIED_COMMIT
+          Windows CI: $env:CI_URL
+          Locked runtime installation and MCP discovery: $env:RELEASE_RUN
+
+          This release does not itself establish fresh real-provider or Host acceptance.
+          "@
+          $notesPath = Join-Path $env:RUNNER_TEMP 'release-notes.txt'
+          [System.IO.File]::WriteAllText($notesPath, $notes, [System.Text.UTF8Encoding]::new($false))
+          gh release create $env:RELEASE_TAG --repo $env:GH_REPO --verify-tag --title $env:RELEASE_TAG --notes-file $notesPath
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
