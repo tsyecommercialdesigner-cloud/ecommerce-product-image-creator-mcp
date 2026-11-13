@@ -4,6 +4,8 @@
 
 本地 stdio 已提供 Prepare、Submit、Get Task 及读取已登记原图的 `get_product_image_file`。Team Mode 默认选择，生成、查询及下载开关默认关闭；已启用时的业务操作和限制见 [成员手册](../../../MANUAL.md)。Sunburst 和 Flare 的 Form、Mock 在指定输入组合下已完成真实图片验收，结果见 [验收记录](../evidence/mvp-team-acceptance-20261113.md)。以下历史契约仍包含早期 Strict 授权及候选接口描述；其中未实现、待联调和自动重试条文不得直接视为当前 Team 实现。
 
+Team Mode 新增 `review_form(task_id, revision, attempt_id, artifact_id, decision)`，对已交付且校验通过的 Form 记录成员明确的 accept/reject 决定；accept 的范围为内部概念原型及 Mock 输入，真人来源仍为 unverified。`confirm_mock_inputs(task_id, artifact_id, review_id, references)` 在成员明确确认后冻结 Mock 新设计素材的变更身份并返回 `revision_decision_id`，供现有 Prepare 校验与一次性关联。两者只写本地记录、不发送生成请求；Strict Mode 拒绝，Host 须先向成员取得明确决定，不得自行伪称真人审核。
+
 供应商模型、端点、分组和响应的适配约束见 [供应商适配契约](provider-adapters.md)。工具发现不等于人工批准；`isError` 或结果状态按锁定 SDK/协议实测映射。Team Mode 未启用自动付费重试，未知结果不重提。
 
 **分阶段业务契约**：形态阶段一次正常绘图产生一张 F/L/R/B/T/Q 六视图组合图，形态各视图左上角由模型标注约定字母；经人工确认后，Mock 阶段一次正常绘图产生一张包含六视图的包装 Mock 组合图，交运营人员审核。两阶段均可明确请求多轮修订并保留历史；Q 为右上 45° 正交。Host Agent 构造提示词，Server 不调用独立 LLM、不拆图或合成。

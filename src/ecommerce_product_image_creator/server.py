@@ -442,6 +442,97 @@ def get_product_image_file(
     return result
 
 
+def _member_environment() -> tuple[Path, Path, ResourceBudget]:
+    root = Path(os.environ["PRODUCT_IMAGE_INPUT_ROOT"]).resolve(strict=True)
+    state = Path(os.environ["PRODUCT_IMAGE_STATE_DIR"]).resolve(strict=True)
+    if (
+        not root.is_dir()
+        or not state.is_dir()
+        or root.is_relative_to(state)
+        or state.is_relative_to(root)
+        or not (state / "tasks.sqlite").is_file()
+    ):
+        raise ValueError("Invalid member environment")
+    return (
+        root,
+        state,
+        ResourceBudget(
+            int(os.environ["PRODUCT_IMAGE_MAX_INPUT_BYTES"]),
+            int(os.environ["PRODUCT_IMAGE_MAX_PIXELS"]),
+            int(os.environ["PRODUCT_IMAGE_MAX_DECODED_BYTES"]),
+        ),
+    )
+
+
+@server.tool(
+    name="review_form",
+    description="Record an explicit Team Form review for a verified delivered artifact; no generation. The Host must obtain the member's decision first.",
+)
+def review_form(
+    task_id: str, revision: int, attempt_id: str, artifact_id: str, decision: str
+) -> dict[str, Any]:
+    from .review import ReviewError
+    from .team_member import review_form as record_review
+
+    try:
+        _, state, budget = _member_environment()
+        return record_review(
+            Store(state / "tasks.sqlite"),
+            state,
+            budget,
+            task_id,
+            revision,
+            attempt_id,
+            artifact_id,
+            decision,
+        )
+    except (
+        ArtifactReadError,
+        ReviewError,
+        KeyError,
+        OSError,
+        ValueError,
+        sqlite3.Error,
+    ):
+        raise ToolError("Form review could not be safely recorded") from None
+
+
+@server.tool(
+    name="confirm_mock_inputs",
+    description="Record an explicit Team decision to change Mock artwork; no generation. The Host must obtain the member's confirmation first.",
+)
+def confirm_mock_inputs(
+    task_id: str, artifact_id: str, review_id: str, references: list[dict[str, Any]]
+) -> dict[str, Any]:
+    from .review import ReviewError
+    from .team_member import confirm_mock_inputs as record_inputs
+
+    try:
+        root, state, budget = _member_environment()
+        return record_inputs(
+            Store(state / "tasks.sqlite"),
+            root,
+            state,
+            budget,
+            task_id,
+            artifact_id,
+            review_id,
+            references,
+        )
+    except (
+        ArtifactReadError,
+        ReviewError,
+        KeyError,
+        OSError,
+        ValueError,
+        TypeError,
+        sqlite3.Error,
+    ):
+        raise ToolError(
+            "Mock input confirmation could not be safely recorded"
+        ) from None
+
+
 @server.tool(
     name="prepare_product_image",
     description="Prepare an offline stage snapshot; no image generation or authorization.",

@@ -8,7 +8,7 @@
 
 - 运行环境：Windows，Python 3.12.14，uv 0.12.9；依赖由 `uv.lock` 固定。
 - 本地 stdio Host：Codex CLI、Claude Desktop、DeepSeek Harness Desktop（desktop Profile）；各自显示方式不同，见手册。
-- 工具：`prepare_product_image`、`submit_product_image`、`get_product_image_task`、`get_product_image_file`。
-- 当前交付限制：Form 审核和 Mock 输入变更尚无成员可用的公开操作入口；此次真实 Mock 使用了受控内部操作。团队自助连续完成 Form → 审核 → Mock 前仍需解决该问题。
+- 工具：`prepare_product_image`、`submit_product_image`、`get_product_image_task`、`get_product_image_file`、`review_form`、`confirm_mock_inputs`。
+- Team 模式可记录成员的 Form 审核和 Mock 素材变更；实际 Host 联调和新入口的真实业务测试仍待验证。Strict 模式不启用这两个入口。
 
 需求及任务状态见 [功能规范](specs/001-product-image-generation/spec.md)、[任务](specs/001-product-image-generation/tasks.md) 和 [工具契约](specs/001-product-image-generation/contracts/mcp-tools.md)。现有任务复选框仍是正式状态依据；真实图片验收不等于所有历史 Host、安全或 CI 验收项均已完成。

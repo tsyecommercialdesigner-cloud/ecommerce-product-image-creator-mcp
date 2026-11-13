@@ -137,18 +137,21 @@ def _review(
             "SELECT evidence_reference FROM form_review_detail WHERE review_id=?",
             (latest[0],),
         ).fetchone()
-        if (
-            detail
-            and detail[0]
-            == "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper"
-        ):
+        if detail and detail[0] in {
+            "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper",
+            "concept_prototype;internal_mock_allowed;unverified=not_specified",
+        }:
             result["usage_scope"] = "concept_prototype"
             from .preparation import _review_is_trusted
 
             result["mock_permitted"] = state == "accept" and _review_is_trusted(
                 latest[2], task_id, latest[0], digest, detail[0]
             )
-            result["unverified_structure"] = ["back", "sides", "zipper"]
+            result["unverified_structure"] = (
+                ["back", "sides", "zipper"]
+                if detail[0].endswith("unverified=back,sides,zipper")
+                else "not_specified"
+            )
     return result
 
 

@@ -318,24 +318,161 @@ main()
                     Path(returned_path).write_bytes(content)
                 if scenario in {"mock", "team-native-mock"}:
                     artifact = attempts[0]["artifacts"][0]["artifact_id"]
-                    save_review(
-                        Store(state / "tasks.sqlite"),
-                        FormReview(
+                    if scenario == "team-native-mock":
+                        missing_review = await session.call_tool(
+                            "prepare_product_image",
+                            {
+                                "task_id": args["task_id"],
+                                "stage": "mock",
+                                "artifact_id": artifact,
+                                "review_id": "not-a-review",
+                                "references": [refs[1]],
+                                "instructions": "test",
+                                "prompt": "mock F L R B T Q",
+                            },
+                        )
+                        assert missing_review.is_error
+                        invalid_review = await session.call_tool(
+                            "review_form",
+                            {
+                                "task_id": args["task_id"],
+                                "revision": args["revision"],
+                                "attempt_id": submit.structured_content["attempt_id"],
+                                "artifact_id": "wrong-artifact",
+                                "decision": "accept",
+                            },
+                        )
+                        assert invalid_review.is_error
+                        member_review = await session.call_tool(
+                            "review_form",
+                            {
+                                "task_id": args["task_id"],
+                                "revision": args["revision"],
+                                "attempt_id": submit.structured_content["attempt_id"],
+                                "artifact_id": artifact,
+                                "decision": "accept",
+                            },
+                        )
+                        assert (
+                            not member_review.is_error
+                            and member_review.structured_content
+                        )
+                        review_id = member_review.structured_content["review_id"]
+                        changed = root / "new-artwork.png"
+                        Image.new("RGB", (4, 4), "green").save(changed)
+                        mock_refs = [{**refs[1], "path": str(changed)}]
+                        unconfirmed = await session.call_tool(
+                            "prepare_product_image",
+                            {
+                                "task_id": args["task_id"],
+                                "stage": "mock",
+                                "artifact_id": artifact,
+                                "review_id": review_id,
+                                "references": mock_refs,
+                                "instructions": "test",
+                                "prompt": "mock F L R B T Q",
+                            },
+                        )
+                        assert unconfirmed.is_error
+                        wrong_source = await session.call_tool(
+                            "confirm_mock_inputs",
+                            {
+                                "task_id": args["task_id"],
+                                "artifact_id": "wrong-artifact",
+                                "review_id": review_id,
+                                "references": mock_refs,
+                            },
+                        )
+                        assert wrong_source.is_error
+                        declaration = await session.call_tool(
+                            "confirm_mock_inputs",
+                            {
+                                "task_id": args["task_id"],
+                                "artifact_id": artifact,
+                                "review_id": review_id,
+                                "references": mock_refs,
+                            },
+                        )
+                        assert (
+                            not declaration.is_error and declaration.structured_content
+                        )
+                        decision_id = declaration.structured_content[
+                            "revision_decision_id"
+                        ]
+                        stale_inputs = await session.call_tool(
+                            "prepare_product_image",
+                            {
+                                "task_id": args["task_id"],
+                                "stage": "mock",
+                                "artifact_id": artifact,
+                                "review_id": review_id,
+                                "references": [refs[1]],
+                                "instructions": "test",
+                                "prompt": "mock F L R B T Q",
+                                "revision_decision_id": decision_id,
+                            },
+                        )
+                        assert stale_inputs.is_error
+                        assert (
+                            post_count.read_text() == "1"
+                            and query_count.read_text() == "1"
+                        )
+                        strict_params = StdioServerParameters(
+                            command=sys.executable,
+                            args=params.args,
+                            env={**env, "TEAM_MODE": "false"},
+                        )
+                        async with (
+                            stdio_client(strict_params) as (sr, sw),
+                            ClientSession(sr, sw) as strict,
+                        ):
+                            await strict.initialize()
+                            denied_review = await strict.call_tool(
+                                "review_form",
+                                {
+                                    "task_id": args["task_id"],
+                                    "revision": args["revision"],
+                                    "attempt_id": submit.structured_content[
+                                        "attempt_id"
+                                    ],
+                                    "artifact_id": artifact,
+                                    "decision": "accept",
+                                },
+                            )
+                            denied_input = await strict.call_tool(
+                                "confirm_mock_inputs",
+                                {
+                                    "task_id": args["task_id"],
+                                    "artifact_id": artifact,
+                                    "review_id": review_id,
+                                    "references": mock_refs,
+                                },
+                            )
+                            assert denied_review.is_error and denied_input.is_error
+                    else:
+                        review_id, mock_refs, decision_id = (
                             "test-review",
-                            args["task_id"],
-                            args["revision"],
-                            artifact,
-                            digest,
-                            "accept",
-                            "team-responsible-user"
-                            if scenario.startswith("team-native")
-                            else "fixture",
-                            time.time(),
-                            "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper"
-                            if scenario.startswith("team-native")
-                            else None,
-                        ),
-                    )
+                            [refs[1]],
+                            None,
+                        )
+                        save_review(
+                            Store(state / "tasks.sqlite"),
+                            FormReview(
+                                "test-review",
+                                args["task_id"],
+                                args["revision"],
+                                artifact,
+                                digest,
+                                "accept",
+                                "team-responsible-user"
+                                if scenario.startswith("team-native")
+                                else "fixture",
+                                time.time(),
+                                "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper"
+                                if scenario.startswith("team-native")
+                                else None,
+                            ),
+                        )
                     reviewed = await session.call_tool(
                         "get_product_image_task", {"task_id": args["task_id"]}
                     )
@@ -346,11 +483,7 @@ main()
                     if scenario == "team-native-mock":
                         assert review["usage_scope"] == "concept_prototype"
                         assert review["mock_permitted"] is True
-                        assert review["unverified_structure"] == [
-                            "back",
-                            "sides",
-                            "zipper",
-                        ]
+                        assert review["unverified_structure"] == "not_specified"
                         assert review["trust_state"] == "unverified"
                     mock = await session.call_tool(
                         "prepare_product_image",
@@ -358,14 +491,34 @@ main()
                             "task_id": args["task_id"],
                             "stage": "mock",
                             "artifact_id": artifact,
-                            "review_id": "test-review",
-                            "references": [refs[1]],
+                            "review_id": review_id,
+                            "references": mock_refs,
                             "instructions": "test",
                             "prompt": "mock F L R B T Q",
+                            **(
+                                {"revision_decision_id": decision_id}
+                                if decision_id
+                                else {}
+                            ),
                         },
                     )
                     assert not mock.is_error and mock.structured_content, mock
                     m = mock.structured_content
+                    if decision_id:
+                        replay = await session.call_tool(
+                            "prepare_product_image",
+                            {
+                                "task_id": args["task_id"],
+                                "stage": "mock",
+                                "artifact_id": artifact,
+                                "review_id": review_id,
+                                "references": mock_refs,
+                                "instructions": "test",
+                                "prompt": "mock F L R B T Q",
+                                "revision_decision_id": decision_id,
+                            },
+                        )
+                        assert replay.is_error
                     mock_args = {
                         k: m[k]
                         for k in (

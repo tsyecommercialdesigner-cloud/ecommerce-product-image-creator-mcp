@@ -813,7 +813,10 @@ def _review_is_trusted(
         and source == "team-responsible-user"
         and bool(task_id and review_id and artifact_sha256)
         and evidence_reference
-        == "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper"
+        in {
+            "concept_prototype;internal_mock_allowed;unverified=back,sides,zipper",
+            "concept_prototype;internal_mock_allowed;unverified=not_specified",
+        }
     )
 
 

@@ -37,6 +37,8 @@ def test_stdio_sdk_initialization_discovery_and_errors(tmp_path: Path) -> None:
                     "prepare_product_image",
                     "get_product_image_task",
                     "get_product_image_file",
+                    "review_form",
+                    "confirm_mock_inputs",
                     "submit_product_image",
                 }
                 good = await session.call_tool("phase2a_probe", {"fail": False})
@@ -112,6 +114,8 @@ def test_stdio_business_schemas_calls_and_read_only_boundaries(tmp_path: Path) -
                     "submit_product_image",
                     "get_product_image_task",
                     "get_product_image_file",
+                    "review_form",
+                    "confirm_mock_inputs",
                 }
                 assert all(
                     tools[name].description
@@ -409,7 +413,7 @@ main()
 
             await asyncio.wait_for(await_stopped(), timeout=15)
             assert stopped.read_text(encoding="utf-8") == "cancelled"
-            assert len((await client.list_tools()).tools) == 5
+            assert len((await client.list_tools()).tools) == 7
 
     asyncio.run(run())
 

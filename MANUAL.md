@@ -129,7 +129,7 @@ TEAM_DOWNLOAD_HOSTS = 'files.anyroutes.cn'
         failOnStartupError: true
 ```
 
-重启对应 Host，确认 Server 运行并发现四个工具。既有真实 Host 验证发生在开发环境；以上新安装路径的完整 Host 配置尚待发布后实测。
+重启对应 Host，确认 Server 运行并发现六个工具。既有真实 Host 验证发生在开发环境；以上新安装路径和新审核工具的实际 Host 配置尚待实测。
 
 ## 4. 使用
 
@@ -137,7 +137,8 @@ TEAM_DOWNLOAD_HOSTS = 'files.anyroutes.cn'
 2. 核对图片、提示词、模型和费用风险。管理员启用生成后，让 Agent 使用 Prepare 返回的身份与摘要调用 `submit_product_image` 一次；一次提交可能收费。不要让 Agent 自行循环重试或切换模型。
 3. 使用 `get_product_image_task` 查看本地状态。管理员启用查询后，明确要求 `refresh_remote=true` 查询原任务；启用下载且来源检查通过时会交付图片。若为 pending，可稍后由用户再次明确刷新；状态 unknown 或超时先检查原任务，禁止盲目重新生成。
 4. 图片交付后人工检查六个视角及商品结构。`get_product_image_file` 读取已登记原图，可让 Host 保存到自身工作区；本地路径仍可作为备用。Codex CLI 终端不能直接内嵌图片；Claude Desktop 已观察到文件卡片及侧边预览，DSH Desktop 已观察到 Markdown 图片正文展示，实际显示取决于 Host。
-5. **Mock 自助操作尚有缺口：** 当前 Server 没有向成员提供创建 Form 审核记录及确认输入修订的完整入口。必须先由维护者通过现有正式审核流程处理，不能直接修改 SQLite、伪造已审核状态，或要求 Agent 无依据跳过审核。获得可用入口后，Mock 使用已审核 Form 和有权使用的设计素材，单独 Prepare、提交和审核；Form 通过不代表 Mock 自动通过。
+5. 在 Team 模式下，成员查看 Form 后明确告知 Agent 接受或拒绝；Agent 使用 `review_form` 记录该 Task、Revision、Attempt 和 Artifact 的决定。接受范围为内部概念原型及后续 Mock，未提供的商品结构须另行核实。记录的来源是本地声明，Server 不能独立验证真人身份；Host 不应在成员未作决定时自行调用。Strict 模式下该入口拒绝。
+6. Mock 使用已接受的 Form 和有权使用的设计素材。若更换设计素材，先由成员明确确认，调用 `confirm_mock_inputs`，再用返回的 `revision_decision_id` 调用 `prepare_product_image` 准备 Mock；素材未变时无需该 ID。审核和确认仅写本地记录，不生成图片；准备后仍须另行明确提交。Form 通过不代表 Mock 自动通过。
 
 例如，将本人有权使用的图片分别保存为 `runtime-data/inputs/product.png` 和 `runtime-data/inputs/design.png` 后，可向已连接的 Agent 发送：
 
