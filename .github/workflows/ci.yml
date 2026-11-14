@@ -2,11 +2,15 @@ name: Windows offline checks
 
 on:
   pull_request:
+    branches: [dev, main]
   push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
 
 jobs:
   windows-offline:
@@ -18,15 +22,21 @@ jobs:
     env:
       UV_NO_PROGRESS: '1'
       PYTHONUTF8: '1'
+      GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Verify PR branch routing
+        if: github.event_name == 'pull_request'
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref }}
+          TARGET_BRANCH: ${{ github.base_ref }}
+        run: |
+          if ($env:TARGET_BRANCH -eq 'main' -and $env:SOURCE_BRANCH -ne 'dev') { throw 'Only dev may target main' }
+          if ($env:TARGET_BRANCH -eq 'dev' -and $env:SOURCE_BRANCH -cnotlike 'feature/*') { throw 'Only feature/* may target dev' }
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Set up Node for Pyright
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24.21.0'
+          fetch-depth: 0
       - name: Set up uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
@@ -34,20 +44,56 @@ jobs:
           enable-cache: false
       - name: Install pinned Python
         run: uv python install
+      - name: Check release candidate evidence
+        id: evidence
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: uv run --no-project --python 3.12.14 python .github/scripts/ci_evidence.py verify
       - name: Install locked dependencies
-        run: uv sync --locked --group dev
-      - name: Verify Python version
-        run: uv run --no-sync python -c "import sys; assert sys.version_info[:3] == (3, 12, 14), sys.version"
-      - name: Verify lock consistency
-        run: uv sync --locked --check --group dev
-      - name: Check formatting
-        run: uv run --no-sync ruff format --check src tests
-      - name: Check lint
-        run: uv run --no-sync ruff check .
-      - name: Check types
-        run: uv run --no-sync pyright
-      # Python-only test guard; this does not block native processes or OS egress.
-      - name: Run full offline test suite
+        if: steps.evidence.outputs.reuse != 'true'
+        run: |
+          uv sync --locked --group dev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv sync --locked --check --group dev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Classify changes
+        id: scope
+        if: steps.evidence.outputs.reuse != 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request' -and $env:BASE_REF -eq 'dev') {
+            $kind = uv run --no-sync python .github/scripts/doc_check.py classify $env:BASE_SHA
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else { $kind = 'code' }
+          "kind=$kind" >> $env:GITHUB_OUTPUT
+      - name: Check changed documents and added content
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          uv run --no-sync python .github/scripts/doc_check.py check $env:BASE_SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --no-sync python .github/scripts/doc_check.py secrets $env:BASE_SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Set up Node for Pyright
+        if: steps.scope.outputs.kind == 'code'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - name: Check formatting, lint, and types
+        if: steps.scope.outputs.kind == 'code'
+        run: |
+          uv run --no-sync ruff format --check src tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --no-sync ruff check .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --no-sync pyright
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run offline test suite
+        if: steps.scope.outputs.kind == 'code'
+        env:
+          TEST_SELECTION_BASE: ${{ github.base_ref == 'dev' && github.event.pull_request.base.sha || '' }}
         run: |
           $env:CI_NETWORK_GUARD = '1'
           $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'tests/ci_guard'
@@ -57,5 +103,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
           $testBase = Join-Path $testRoot ("ci-pytest-{0}-{1}" -f $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT)
           if (Test-Path -LiteralPath $testBase) { throw 'Test base already exists' }
-          uv run --no-sync pytest -q --basetemp $testBase
+          uv run --no-sync python .github/scripts/run_tests.py $testBase
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record release PR candidate tree
+        if: github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'dev'
+        run: uv run --no-sync python .github/scripts/ci_evidence.py candidate
+      - name: Upload release PR evidence
+        if: github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref == 'dev'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-pr-evidence
+          path: release-evidence/evidence.json
+          if-no-files-found: error
+          retention-days: 90
